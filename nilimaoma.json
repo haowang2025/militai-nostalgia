@@ -1,0 +1,120 @@
+[
+  {
+    "start": 9.0,
+    "end": 25.0,
+    "peak_t": 13.0,
+    "source": "k",
+    "content": "整齐的亢奋与集体响应；弹幕高度同步地刷屏支持，形成强烈的阵列感与玩梗氛围。",
+    "confidence": {
+      "score": 0.95,
+      "scope": "overall_interpretation",
+      "meaning": "当前窗口的整体解释是否有足够证据支持"
+    },
+    "function": [
+      "爆点",
+      "情绪蓄积"
+    ],
+    "evidence": {
+      "danmaku_examples": [
+        "支持阿坤",
+        "支持坤坤"
+      ],
+      "crowd_signals": {
+        "burst": "present",
+        "sync_level": "high",
+        "meme": [
+          "支持阿坤"
+        ]
+      }
+    }
+  },
+  {
+    "start": 25.0,
+    "end": 80.0,
+    "peak_t": 49.0,
+    "source": "k",
+    "content": "轻松的调侃与围观；情绪较为分散，主要集中在对口音的讨论、零星的赞赏以及持续的玩梗。",
+    "confidence": {
+      "score": 0.85,
+      "scope": "overall_interpretation",
+      "meaning": "当前窗口的整体解释是否有足够证据支持"
+    },
+    "function": [
+      "过桥",
+      "铺垫"
+    ],
+    "evidence": {
+      "danmaku_examples": [
+        "这口音像东北人，不像四川人",
+        "没座 站着听",
+        "唱的非常好听，顶尖"
+      ],
+      "crowd_signals": {
+        "burst": "absent",
+        "sync_level": "low",
+        "meme": [
+          "没坐"
+        ]
+      }
+    }
+  },
+  {
+    "start": 82.0,
+    "end": 92.0,
+    "peak_t": 85.0,
+    "source": "k",
+    "content": "戏谑与解构；视频内容突然拔高立意，引发群体整齐的吐槽与轻微的逆反心理，情绪发生明显转折。",
+    "confidence": {
+      "score": 0.92,
+      "scope": "overall_interpretation",
+      "meaning": "当前窗口的整体解释是否有足够证据支持"
+    },
+    "function": [
+      "转折",
+      "爆点"
+    ],
+    "evidence": {
+      "danmaku_examples": [
+        "升华上了",
+        "上高度了",
+        "强行上高度"
+      ],
+      "crowd_signals": {
+        "burst": "present",
+        "sync_level": "high",
+        "meme": [
+          "升华",
+          "上高度"
+        ]
+      }
+    }
+  },
+  {
+    "start": 92.0,
+    "end": 160.0,
+    "peak_t": 118.0,
+    "source": "k",
+    "content": "愉悦的认同与持续的戏谑；情绪回归对歌曲洗脑属性的认可，并伴随对特定人物的调侃，氛围轻松释放。",
+    "confidence": {
+      "score": 0.88,
+      "scope": "overall_interpretation",
+      "meaning": "当前窗口的整体解释是否有足够证据支持"
+    },
+    "function": [
+      "释放",
+      "余震"
+    ],
+    "evidence": {
+      "danmaku_examples": [
+        "句句打杨坤的脸",
+        "好上头啊",
+        "让杨坤模仿唱一下，看看"
+      ],
+      "crowd_signals": {
+        "burst": "absent",
+        "sync_level": "medium",
+        "meme": []
+      }
+    }
+  }
+]
