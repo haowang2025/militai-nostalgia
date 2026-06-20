@@ -5,6 +5,8 @@ import type { FridayPayload, FridaySegment, Moment, MomentMedia, MomentPayload, 
 
 type View = 'player' | 'library' | 'settings';
 type AudioGraph = { context: AudioContext; analyser: AnalyserNode; source: MediaElementAudioSourceNode };
+type RememberRange = { start: number; end: number; active: boolean };
+type PressState = { startTime: number; startedAtMs: number; long: boolean; timer: number };
 
 type MomentSurfaceData = {
   id: string;
@@ -154,10 +156,12 @@ function App() {
   const [deleteWarningOpen, setDeleteWarningOpen] = useState(false);
   const [creativeNoticeOpen, setCreativeNoticeOpen] = useState(false);
   const [previewMedia, setPreviewMedia] = useState<MomentMedia | null>(null);
+  const [rememberRange, setRememberRange] = useState<RememberRange | null>(null);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioGraphRef = useRef<AudioGraph | null>(null);
+  const rememberPressRef = useRef<PressState | null>(null);
 
   const allMoments = useNostalgiaStore((state) => state.moments);
   const moments = allMoments.filter((moment) => moment.track_id === track.id);
@@ -165,6 +169,10 @@ function App() {
   const updateMoment = useNostalgiaStore((state) => state.updateMoment);
   const deleteMoment = useNostalgiaStore((state) => state.deleteMoment);
   const addResponse = useNostalgiaStore((state) => state.addResponse);
+
+  const audioTime = () => audioRef.current?.currentTime ?? currentTime;
+  const clampTime = (value: number) => Math.min(duration || track.duration_s, Math.max(0, value));
+  const seedAt = (time: number) => segments.find((segment) => time >= segment.start && time <= segment.end) ?? currentSegment;
 
   useEffect(() => {
     fetch(track.friday_url)
@@ -200,17 +208,21 @@ function App() {
 
   const seedIndexOf = (seed?: FridaySegment) => Math.max(0, segments.findIndex((segment) => segment === seed));
 
-  const createMomentFromSeed = (seed: FridaySegment | undefined, content: string, tags?: string[], payload?: MomentPayload) => {
-    const audio = audioRef.current;
-    const timestamp = audio?.currentTime ?? currentTime;
-    const anchorTime = seed?.peak_t ?? timestamp;
+  const createMomentFromSeed = (seed: FridaySegment | undefined, content: string, tags?: string[], payload?: MomentPayload, range?: { start: number; end: number }) => {
+    const fallbackTime = audioTime();
+    const normalizedStart = range ? clampTime(Math.min(range.start, range.end)) : undefined;
+    const normalizedEnd = range ? clampTime(Math.max(range.start, range.end)) : undefined;
+    const rangeStart = normalizedStart !== undefined ? normalizedStart : seed?.start ?? Math.max(0, fallbackTime - 5);
+    const rangeEnd = normalizedEnd !== undefined ? Math.max(normalizedEnd, rangeStart + 0.35) : seed?.end ?? Math.min(duration || track.duration_s, fallbackTime + 5);
+    const middle = (rangeStart + rangeEnd) / 2;
+    const anchorTime = seed?.peak_t && seed.peak_t >= rangeStart && seed.peak_t <= rangeEnd ? seed.peak_t : range ? middle : seed?.peak_t ?? fallbackTime;
     const seedIndex = seedIndexOf(seed);
     const nextTags = tags ?? tagOptionsFromSegment(seed).slice(0, 5);
     const moment = addMoment({
       track_id: track.id,
       timestamp_s: anchorTime,
-      start_s: seed?.start ?? Math.max(0, timestamp - 5),
-      end_s: seed?.end ?? Math.min(duration || track.duration_s, timestamp + 5),
+      start_s: rangeStart,
+      end_s: rangeEnd,
       public_segment_id: seed ? segmentId(track.id, seed, seedIndex) : undefined,
       note: content || seed?.content || '这一刻值得记住。',
       mood: unique([...stringArray(seed?.payload?.mood), ...(seed?.function ?? [])]).slice(0, 4),
@@ -244,14 +256,77 @@ function App() {
   };
 
   const recordMoment = () => {
-    const audio = audioRef.current;
-    const timestamp = audio?.currentTime ?? currentTime;
-    const directIndex = segments.findIndex((segment) => timestamp >= segment.start && timestamp <= segment.end);
-    const seed = directIndex >= 0 ? segments[directIndex] : currentSegment;
+    const timestamp = audioTime();
+    const seed = seedAt(timestamp);
     const moment = createMomentFromSeed(seed, seed?.content ?? '这一刻值得记住。');
     setToast(`已记录 ${formatTime(moment.timestamp_s)}`);
     addResponse({ title: '米粒太的陪伴', body: companionSeed[Math.floor(Math.random() * companionSeed.length)], tone: 'gentle' });
   };
+
+  const recordMomentRange = (start: number, end: number) => {
+    const rangeStart = clampTime(Math.min(start, end));
+    const rangeEnd = clampTime(Math.max(start, end));
+    const middle = (rangeStart + rangeEnd) / 2;
+    const seed = seedAt(middle) ?? seedAt(rangeStart);
+    const moment = createMomentFromSeed(seed, seed?.content ?? '这一段值得记住。', undefined, undefined, { start: rangeStart, end: rangeEnd });
+    setToast(`已记录区间 ${formatTime(moment.start_s)} - ${formatTime(moment.end_s)}`);
+    addResponse({ title: '米粒太的陪伴', body: companionSeed[Math.floor(Math.random() * companionSeed.length)], tone: 'gentle' });
+  };
+
+  const pressEndTime = (press: PressState) => {
+    const liveTime = audioTime();
+    if (Math.abs(liveTime - press.startTime) > 0.12) return clampTime(liveTime);
+    const elapsed = (performance.now() - press.startedAtMs) / 1000;
+    return clampTime(press.startTime + elapsed);
+  };
+
+  const beginRememberPress = () => {
+    if (editDraft) return;
+    if (rememberPressRef.current) window.clearTimeout(rememberPressRef.current.timer);
+    const startTime = clampTime(audioTime());
+    const press: PressState = {
+      startTime,
+      startedAtMs: performance.now(),
+      long: false,
+      timer: window.setTimeout(() => {
+        if (!rememberPressRef.current) return;
+        rememberPressRef.current.long = true;
+        setRememberRange({ start: startTime, end: startTime, active: true });
+        setToast('继续按住选择区间，松开保存');
+      }, 420),
+    };
+    rememberPressRef.current = press;
+  };
+
+  const finishRememberPress = () => {
+    const press = rememberPressRef.current;
+    if (!press) return;
+    window.clearTimeout(press.timer);
+    const endTime = pressEndTime(press);
+    const isLongRange = press.long || Math.abs(endTime - press.startTime) >= 0.8;
+    rememberPressRef.current = null;
+    setRememberRange(null);
+    if (isLongRange) recordMomentRange(press.startTime, endTime);
+    else recordMoment();
+  };
+
+  const cancelRememberPress = () => {
+    if (rememberPressRef.current) window.clearTimeout(rememberPressRef.current.timer);
+    rememberPressRef.current = null;
+    setRememberRange(null);
+  };
+
+  useEffect(() => {
+    if (!rememberRange?.active) return;
+    let frame = 0;
+    const tick = () => {
+      const press = rememberPressRef.current;
+      if (press?.long) setRememberRange((range) => range ? { ...range, end: pressEndTime(press) } : range);
+      frame = requestAnimationFrame(tick);
+    };
+    tick();
+    return () => cancelAnimationFrame(frame);
+  }, [rememberRange?.active, currentTime, duration]);
 
   const startEdit = (surface: MomentSurfaceData) => {
     setDeleteWarningOpen(false);
@@ -377,6 +452,8 @@ function App() {
     setEditDraft(null);
     setDeleteWarningOpen(false);
     setPreviewMedia(null);
+    setRememberRange(null);
+    cancelRememberPress();
     setView('player');
   };
 
@@ -389,7 +466,7 @@ function App() {
       {view === 'player' ? (
         <>
           <HeroBoard analyser={analyser} seedSegment={currentSegment} activeMoments={activeMoments} selectedMoment={selectedMoment} segmentForMoment={segmentForMoment} currentTime={currentTime} duration={duration} isPlaying={isPlaying} editDraft={editDraft} deleteWarningOpen={deleteWarningOpen} onStartEdit={startEdit} onEditContent={(content) => setEditDraft((draft) => draft ? { ...draft, content } : draft)} onToggleTag={toggleDraftTag} onTagInput={(tagInput) => setEditDraft((draft) => draft ? { ...draft, tagInput } : draft)} onAddCustomTag={addCustomTag} onAddMedia={addMediaFiles} onRemoveMedia={removeMedia} onRequestDelete={requestDeleteMoment} onConfirmDelete={confirmDeleteMoment} onCancelDelete={() => setDeleteWarningOpen(false)} onSaveEdit={saveEdit} onCancelEdit={() => { setDeleteWarningOpen(false); setEditDraft(null); }} onPreviewMedia={setPreviewMedia} />
-          <Transport currentTime={currentTime} duration={duration} moments={moments} isPlaying={isPlaying} toast={toast} onToggle={togglePlay} onSeek={seek} onRecord={recordMoment} onExport={exportCurrent} />
+          <Transport currentTime={currentTime} duration={duration} moments={moments} rememberRange={rememberRange} isPlaying={isPlaying} toast={toast} onToggle={togglePlay} onSeek={seek} onRememberStart={beginRememberPress} onRememberEnd={finishRememberPress} onRememberCancel={cancelRememberPress} onExport={exportCurrent} />
           <ResponseArea />
         </>
       ) : null}
@@ -498,8 +575,10 @@ function Spectrogram({ analyser, isPlaying }: { analyser: AnalyserNode | null; i
   return <canvas className="spectrogram" ref={canvasRef} aria-label="真实音频频谱图" />;
 }
 
-function Transport({ currentTime, duration, moments, isPlaying, toast, onToggle, onSeek, onRecord, onExport }: { currentTime: number; duration: number; moments: Moment[]; isPlaying: boolean; toast: string; onToggle: () => void; onSeek: (time: number) => void; onRecord: () => void; onExport: () => void }) {
-  return <section className="transport-card card-shell"><div className="shortcut"><kbd>空格</kbd><span>{toast}</span></div><div className="progress-area"><span>{formatTime(currentTime)}</span><div className="progress-line"><input min={0} max={duration || 1} step={0.1} value={currentTime} type="range" onChange={(event) => onSeek(Number(event.target.value))} /><div className="progress-fill" style={{ width: `${(currentTime / Math.max(duration, 1)) * 100}%` }} />{moments.map((moment, index) => <button key={moment.id} className="moment-dot" style={{ left: `${(moment.timestamp_s / Math.max(duration, 1)) * 100}%` }} onClick={() => onSeek(moment.timestamp_s)}>{index + 1}</button>)}</div><span>{formatTime(duration)}</span></div><div className="controls"><button title="previous">◀</button><button className="play" onClick={onToggle}>{isPlaying ? 'Ⅱ' : '▶'}</button><button title="next">▶</button></div><div className="transport-actions"><button className="remember-action" onClick={onRecord}>记住此刻</button><button className="export-mini" onClick={onExport}>导出 JSON</button></div></section>;
+function Transport({ currentTime, duration, moments, rememberRange, isPlaying, toast, onToggle, onSeek, onRememberStart, onRememberEnd, onRememberCancel, onExport }: { currentTime: number; duration: number; moments: Moment[]; rememberRange: RememberRange | null; isPlaying: boolean; toast: string; onToggle: () => void; onSeek: (time: number) => void; onRememberStart: () => void; onRememberEnd: () => void; onRememberCancel: () => void; onExport: () => void }) {
+  const rangeStart = rememberRange ? Math.min(rememberRange.start, rememberRange.end) : 0;
+  const rangeEnd = rememberRange ? Math.max(rememberRange.start, rememberRange.end) : 0;
+  return <section className="transport-card card-shell"><div className="shortcut"><kbd>空格</kbd><span>{toast}</span></div><div className="progress-area"><span>{formatTime(currentTime)}</span><div className="progress-line"><input min={0} max={duration || 1} step={0.1} value={currentTime} type="range" onChange={(event) => onSeek(Number(event.target.value))} /><div className="progress-fill" style={{ width: `${(currentTime / Math.max(duration, 1)) * 100}%` }} />{rememberRange ? <div className="hold-range" style={{ left: `${(rangeStart / Math.max(duration, 1)) * 100}%`, width: `${Math.max(0.6, ((rangeEnd - rangeStart) / Math.max(duration, 1)) * 100)}%` }} /> : null}{moments.map((moment, index) => <button key={moment.id} className="moment-dot" style={{ left: `${(moment.timestamp_s / Math.max(duration, 1)) * 100}%` }} onClick={() => onSeek(moment.timestamp_s)}>{index + 1}</button>)}</div><span>{formatTime(duration)}</span></div><div className="controls"><button title="previous">◀</button><button className="play" onClick={onToggle}>{isPlaying ? 'Ⅱ' : '▶'}</button><button title="next">▶</button></div><div className="transport-actions"><button className={`remember-action hold-remember ${rememberRange?.active ? 'is-holding' : ''}`} onPointerDown={(event) => { event.preventDefault(); onRememberStart(); }} onPointerUp={(event) => { event.preventDefault(); onRememberEnd(); }} onPointerCancel={onRememberCancel} onPointerLeave={() => { if (!rememberRange?.active) onRememberCancel(); }}>记住此刻</button><button className="export-mini" onClick={onExport}>导出 JSON</button></div></section>;
 }
 
 function ResponseArea() {
