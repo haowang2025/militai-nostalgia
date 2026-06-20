@@ -138,7 +138,7 @@ function App() {
   }, []);
 
   const currentSegment = useMemo(
-    () => segments.find((segment) => currentTime >= segment.start && currentTime <= segment.end) ?? segments[0],
+    () => segments.find((segment) => currentTime >= segment.start && currentTime <= segment.end) ?? segments.find((segment) => currentTime < segment.start) ?? segments[segments.length - 1],
     [segments, currentTime],
   );
 
@@ -174,21 +174,23 @@ function App() {
   const recordMoment = () => {
     const audio = audioRef.current;
     const timestamp = audio?.currentTime ?? currentTime;
-    const segmentIndex = segments.findIndex((segment) => timestamp >= segment.start && timestamp <= segment.end);
-    const seed = segmentIndex >= 0 ? segments[segmentIndex] : currentSegment;
+    const directIndex = segments.findIndex((segment) => timestamp >= segment.start && timestamp <= segment.end);
+    const seed = directIndex >= 0 ? segments[directIndex] : currentSegment;
+    const seedIndex = directIndex >= 0 ? directIndex : Math.max(0, segments.findIndex((segment) => segment === seed));
     const hooks = segmentHooks(seed);
+    const anchorTime = seed?.peak_t ?? timestamp;
     const moment = addMoment({
       track_id: track.id,
-      timestamp_s: timestamp,
-      start_s: Math.max(0, timestamp - 5),
-      end_s: Math.min(duration || track.duration_s, timestamp + 5),
-      public_segment_id: seed ? segmentId(track.id, seed, Math.max(0, segmentIndex)) : undefined,
+      timestamp_s: anchorTime,
+      start_s: seed?.start ?? Math.max(0, timestamp - 5),
+      end_s: seed?.end ?? Math.min(duration || track.duration_s, timestamp + 5),
+      public_segment_id: seed ? segmentId(track.id, seed, seedIndex) : undefined,
       note: seed?.content ?? '这一刻值得记住。',
       mood: unique([...stringArray(seed?.payload?.mood), ...(seed?.function ?? [])]).slice(0, 4),
       tags: hooks.slice(0, 6),
     });
     setSelectedMomentId(moment.id);
-    setToast(`已记录 ${formatTime(timestamp)}`);
+    setToast(`已记录 ${formatTime(anchorTime)}`);
     addResponse({ title: '米粒太的陪伴', body: companionSeed[Math.floor(Math.random() * companionSeed.length)], tone: 'gentle' });
   };
 
@@ -252,27 +254,8 @@ function App() {
       {view === 'settings' ? <Settings /> : null}
       {view === 'player' ? (
         <>
-          <HeroBoard
-            analyser={analyser}
-            seedSegment={currentSegment}
-            selectedMoment={selectedMoment}
-            moments={moments}
-            currentTime={currentTime}
-            duration={duration}
-            isPlaying={isPlaying}
-            onRecord={recordMoment}
-          />
-          <Transport
-            currentTime={currentTime}
-            duration={duration}
-            moments={moments}
-            isPlaying={isPlaying}
-            toast={toast}
-            onToggle={togglePlay}
-            onSeek={seek}
-            onRecord={recordMoment}
-            onExport={exportCurrent}
-          />
+          <HeroBoard analyser={analyser} seedSegment={currentSegment} selectedMoment={selectedMoment} moments={moments} currentTime={currentTime} duration={duration} isPlaying={isPlaying} onRecord={recordMoment} />
+          <Transport currentTime={currentTime} duration={duration} moments={moments} isPlaying={isPlaying} toast={toast} onToggle={togglePlay} onSeek={seek} onRecord={recordMoment} onExport={exportCurrent} />
           <ResponseArea selectedMoment={selectedMoment} onUpdateMoment={updateMoment} onExport={exportCurrent} />
         </>
       ) : null}
@@ -281,45 +264,11 @@ function App() {
 }
 
 function TopBar({ view, onView, onExport }: { view: View; onView: (view: View) => void; onExport: () => void }) {
-  return (
-    <header className="topbar">
-      <button className="logo" onClick={() => onView('player')}><span className="wave-mark"><i /><i /><i /><i /></span><strong>MilitAIre Nostalgia</strong><em>Beta</em></button>
-      <nav>
-        <button className={view === 'library' ? 'active' : ''} onClick={() => onView('library')}>Library</button>
-        <button onClick={onExport}>Export JSON</button>
-        <button className={view === 'settings' ? 'active' : ''} onClick={() => onView('settings')}>Settings</button>
-        <span className="avatar">米</span>
-      </nav>
-    </header>
-  );
+  return <header className="topbar"><button className="logo" onClick={() => onView('player')}><span className="wave-mark"><i /><i /><i /><i /></span><strong>MilitAIre Nostalgia</strong><em>Beta</em></button><nav><button className={view === 'library' ? 'active' : ''} onClick={() => onView('library')}>Library</button><button onClick={onExport}>Export JSON</button><button className={view === 'settings' ? 'active' : ''} onClick={() => onView('settings')}>Settings</button><span className="avatar">米</span></nav></header>;
 }
 
-function HeroBoard({
-  analyser,
-  seedSegment,
-  selectedMoment,
-  moments,
-  currentTime,
-  duration,
-  isPlaying,
-  onRecord,
-}: {
-  analyser: AnalyserNode | null;
-  seedSegment?: FridaySegment;
-  selectedMoment?: Moment;
-  moments: Moment[];
-  currentTime: number;
-  duration: number;
-  isPlaying: boolean;
-  onRecord: () => void;
-}) {
-  return (
-    <section className="hero-board card-shell clean-board">
-      <Spectrogram analyser={analyser} isPlaying={isPlaying} />
-      <BulletinCard seedSegment={seedSegment} moment={selectedMoment} momentCount={moments.length} onRecord={onRecord} />
-      <div className="timeline-spike" style={{ left: `${Math.min(88, Math.max(12, (currentTime / Math.max(duration, 1)) * 100))}%` }} />
-    </section>
-  );
+function HeroBoard({ analyser, seedSegment, selectedMoment, moments, currentTime, duration, isPlaying, onRecord }: { analyser: AnalyserNode | null; seedSegment?: FridaySegment; selectedMoment?: Moment; moments: Moment[]; currentTime: number; duration: number; isPlaying: boolean; onRecord: () => void }) {
+  return <section className="hero-board card-shell clean-board"><Spectrogram analyser={analyser} isPlaying={isPlaying} /><BulletinCard seedSegment={seedSegment} moment={selectedMoment} momentCount={moments.length} onRecord={onRecord} /><div className="timeline-spike" style={{ left: `${Math.min(88, Math.max(12, (currentTime / Math.max(duration, 1)) * 100))}%` }} /></section>;
 }
 
 function BulletinCard({ seedSegment, moment, momentCount, onRecord }: { seedSegment?: FridaySegment; moment?: Moment; momentCount: number; onRecord: () => void }) {
@@ -330,22 +279,7 @@ function BulletinCard({ seedSegment, moment, momentCount, onRecord }: { seedSegm
   const content = moment?.note || seedSegment?.content || '这一刻值得记住。';
   const chips = unique([...(moment?.tags ?? []), ...(moment?.mood ?? []), ...inheritedHooks]).slice(0, 8);
   const evidence = seedSegment?.evidence.danmaku_examples ?? [];
-
-  return (
-    <article className="bulletin-card clean-segment">
-      <div className="bulletin-meta">
-        <span>{isUserMoment ? '我的 Moment' : '候选 Moment'}</span>
-        <small>{isUserMoment ? `${formatTime(moment!.timestamp_s)} 已保存` : seedSegment ? `${formatTime(seedSegment.start)} - ${formatTime(seedSegment.end)} · Friday seed` : '等待 Friday seed'}</small>
-      </div>
-      {meme.length ? <div className="meme-line">{meme.slice(0, 3).join(' · ')}</div> : null}
-      <h2>{content}</h2>
-      {chips.length ? <div className="tag-row moment-hooks">{chips.map((item) => <span key={item}>{item}</span>)}</div> : null}
-      {media.length ? <div className="media-hooks">{media.slice(0, 3).map((item, index) => <span key={`${item.url ?? item.caption ?? item.type}-${index}`}>{item.type ?? 'media'}{item.caption ? ` · ${item.caption}` : ''}</span>)}</div> : null}
-      {evidence.length ? <p className="evidence-line">{evidence.slice(0, 2).join(' / ')}</p> : null}
-      <button className="remember-action" onClick={onRecord}>{isUserMoment ? '再记一个点' : '记住这一刻'}</button>
-      <small className="moment-count">{momentCount} 个私人锚点保存在本地</small>
-    </article>
-  );
+  return <article className="bulletin-card clean-segment"><div className="bulletin-meta"><span>{isUserMoment ? '我的 Moment' : '候选 Moment'}</span><small>{isUserMoment ? `${formatTime(moment!.timestamp_s)} 已保存` : seedSegment ? `${formatTime(seedSegment.start)} - ${formatTime(seedSegment.end)} · Friday seed` : '等待 Friday seed'}</small></div>{meme.length ? <div className="meme-line">{meme.slice(0, 3).join(' · ')}</div> : null}<h2>{content}</h2>{chips.length ? <div className="tag-row moment-hooks">{chips.map((item) => <span key={item}>{item}</span>)}</div> : null}{media.length ? <div className="media-hooks">{media.slice(0, 3).map((item, index) => <span key={`${item.url ?? item.caption ?? item.type}-${index}`}>{item.type ?? 'media'}{item.caption ? ` · ${item.caption}` : ''}</span>)}</div> : null}{evidence.length ? <p className="evidence-line">{evidence.slice(0, 2).join(' / ')}</p> : null}<button className="remember-action" onClick={onRecord}>{isUserMoment ? '再记一个点' : '记住这一刻'}</button><small className="moment-count">{momentCount} 个私人锚点保存在本地</small></article>;
 }
 
 function Spectrogram({ analyser, isPlaying }: { analyser: AnalyserNode | null; isPlaying: boolean }) {
@@ -395,14 +329,7 @@ function Spectrogram({ analyser, isPlaying }: { analyser: AnalyserNode | null; i
 }
 
 function Transport({ currentTime, duration, moments, isPlaying, toast, onToggle, onSeek, onRecord, onExport }: { currentTime: number; duration: number; moments: Moment[]; isPlaying: boolean; toast: string; onToggle: () => void; onSeek: (time: number) => void; onRecord: () => void; onExport: () => void }) {
-  return (
-    <section className="transport-card card-shell">
-      <div className="shortcut"><kbd>空格</kbd><span>{toast}</span></div>
-      <div className="progress-area"><span>{formatTime(currentTime)}</span><div className="progress-line"><input min={0} max={duration || 1} step={0.1} value={currentTime} type="range" onChange={(event) => onSeek(Number(event.target.value))} /><div className="progress-fill" style={{ width: `${(currentTime / Math.max(duration, 1)) * 100}%` }} />{moments.map((moment, index) => <button key={moment.id} className="moment-dot" style={{ left: `${(moment.timestamp_s / Math.max(duration, 1)) * 100}%` }} onClick={() => onSeek(moment.timestamp_s)}>{index + 1}</button>)}</div><span>{formatTime(duration)}</span></div>
-      <div className="controls"><button title="previous">◀</button><button className="play" onClick={onToggle}>{isPlaying ? 'Ⅱ' : '▶'}</button><button title="next">▶</button></div>
-      <div className="transport-actions"><button className="remember-action" onClick={onRecord}>记住此刻</button><button className="export-mini" onClick={onExport}>导出 JSON</button></div>
-    </section>
-  );
+  return <section className="transport-card card-shell"><div className="shortcut"><kbd>空格</kbd><span>{toast}</span></div><div className="progress-area"><span>{formatTime(currentTime)}</span><div className="progress-line"><input min={0} max={duration || 1} step={0.1} value={currentTime} type="range" onChange={(event) => onSeek(Number(event.target.value))} /><div className="progress-fill" style={{ width: `${(currentTime / Math.max(duration, 1)) * 100}%` }} />{moments.map((moment, index) => <button key={moment.id} className="moment-dot" style={{ left: `${(moment.timestamp_s / Math.max(duration, 1)) * 100}%` }} onClick={() => onSeek(moment.timestamp_s)}>{index + 1}</button>)}</div><span>{formatTime(duration)}</span></div><div className="controls"><button title="previous">◀</button><button className="play" onClick={onToggle}>{isPlaying ? 'Ⅱ' : '▶'}</button><button title="next">▶</button></div><div className="transport-actions"><button className="remember-action" onClick={onRecord}>记住此刻</button><button className="export-mini" onClick={onExport}>导出 JSON</button></div></section>;
 }
 
 function ResponseArea({ selectedMoment, onUpdateMoment, onExport }: { selectedMoment?: Moment; onUpdateMoment: (id: string, patch: Partial<Pick<Moment, 'note' | 'mood' | 'tags' | 'allow_recall' | 'recall_style'>>) => void; onExport: () => void }) {
@@ -410,12 +337,7 @@ function ResponseArea({ selectedMoment, onUpdateMoment, onExport }: { selectedMo
   const [note, setNote] = useState(selectedMoment?.note ?? '');
   useEffect(() => setNote(selectedMoment?.note ?? ''), [selectedMoment?.id, selectedMoment?.note]);
   const saveNote = () => selectedMoment && onUpdateMoment(selectedMoment.id, { note });
-  return (
-    <section className="response-grid focused">
-      <article className="analysis-card card-shell"><div className="panel-title"><h2>当前 Moment</h2><span>本地私有</span></div>{selectedMoment ? <><p>时间点：{formatTime(selectedMoment.timestamp_s)}，范围：{formatTime(selectedMoment.start_s)} - {formatTime(selectedMoment.end_s)}</p><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="给这一刻补写一句话" /><div className="tag-row">{[...selectedMoment.mood, ...selectedMoment.tags].map((tag) => <span key={tag}>{tag}</span>)}</div><div className="panel-actions"><button className="remember-action" onClick={saveNote}>保存补写</button><button onClick={onExport}>导出 Friday JSON</button></div></> : <p>还没有私人锚点。播放时点击“记住此刻”或按空格。</p>}</article>
-      <article className="letter-card card-shell"><div className="panel-title"><h2>米粒太反馈</h2><span>MCP 降级演示</span></div><p>{responses[0]?.body ?? '先把记录链路跑通：播放、保存、补写、导出。MCP 和 LLM 后续再接真实服务。'}</p><p>这里不替用户定义情绪，只把 Friday seed 和私人 Moment 放在一起，作为回忆召回的入口。</p><em>— MilitAIre</em></article>
-    </section>
-  );
+  return <section className="response-grid focused"><article className="analysis-card card-shell"><div className="panel-title"><h2>当前 Moment</h2><span>本地私有</span></div>{selectedMoment ? <><p>时间点：{formatTime(selectedMoment.timestamp_s)}，范围：{formatTime(selectedMoment.start_s)} - {formatTime(selectedMoment.end_s)}</p><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="给这一刻补写一句话" /><div className="tag-row">{[...selectedMoment.mood, ...selectedMoment.tags].map((tag) => <span key={tag}>{tag}</span>)}</div><div className="panel-actions"><button className="remember-action" onClick={saveNote}>保存补写</button><button onClick={onExport}>导出 Friday JSON</button></div></> : <p>还没有私人锚点。播放时点击“记住此刻”或按空格。</p>}</article><article className="letter-card card-shell"><div className="panel-title"><h2>米粒太反馈</h2><span>MCP 降级演示</span></div><p>{responses[0]?.body ?? '先把记录链路跑通：播放、保存、补写、导出。MCP 和 LLM 后续再接真实服务。'}</p><p>这里不替用户定义情绪，只把 Friday seed 和私人 Moment 放在一起，作为回忆召回的入口。</p><em>— MilitAIre</em></article></section>;
 }
 
 function Library({ activeTrack, onPick }: { activeTrack: Track; onPick: (track: Track) => void }) {
