@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { companionSeed, tracks } from './demoData';
 import { useNostalgiaStore } from './store';
-import type { FridayPayload, FridaySegment, Moment, Track } from './types';
+import type { FridayPayload, FridaySegment, Moment, MomentMedia, MomentPayload, Track } from './types';
 
 type View = 'player' | 'library' | 'settings';
 type AudioGraph = { context: AudioContext; analyser: AnalyserNode; source: MediaElementAudioSourceNode };
-type PayloadMedia = { type?: string; url?: string; caption?: string; role?: string; source?: string };
 
 type MomentSurfaceData = {
   id: string;
   content: string;
   tags: string[];
-  media: PayloadMedia[];
+  tagOptions: string[];
+  media: MomentMedia[];
   momentId?: string;
   seedSegment?: FridaySegment;
 };
@@ -21,6 +21,10 @@ type EditDraft = {
   momentId?: string;
   seedSegment?: FridaySegment;
   content: string;
+  selectedTags: string[];
+  customMeme: string[];
+  tagInput: string;
+  media: MomentMedia[];
 };
 
 const formatTime = (value: number) => {
@@ -39,35 +43,55 @@ const stringArray = (value: unknown): string[] => {
   return [];
 };
 
-const unique = (items: string[]) => Array.from(new Set(items.filter(Boolean)));
+const unique = (items: string[]) => Array.from(new Set(items.map((item) => item.trim()).filter(Boolean)));
 
 const segmentMeme = (segment?: FridaySegment) => unique([
   ...(segment?.evidence.crowd_signals.meme ?? []),
   ...stringArray(segment?.payload?.meme),
 ]);
 
-const momentTags = (segment?: FridaySegment, fallback: string[] = []) => unique([
+const tagOptionsFromSegment = (segment?: FridaySegment, extra: string[] = []) => unique([
   ...segmentMeme(segment),
   ...stringArray(segment?.payload?.sensory),
   ...stringArray(segment?.payload?.imagery),
   ...(segment?.evidence.danmaku_examples ?? []),
-  ...fallback,
-]).slice(0, 5);
+  ...extra,
+]);
 
-const segmentMedia = (payload?: FridayPayload): PayloadMedia[] => {
+const mediaFromPayload = (payload?: FridayPayload | MomentPayload): MomentMedia[] => {
   const media = payload?.media;
   if (!Array.isArray(media)) return [];
   return media
     .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && !Array.isArray(item))
     .map((item) => ({
-      type: typeof item.type === 'string' ? item.type : 'media',
+      type: typeof item.type === 'string' ? (item.type as MomentMedia['type']) : 'media',
       url: typeof item.url === 'string' ? item.url : undefined,
       caption: typeof item.caption === 'string' ? item.caption : undefined,
       role: typeof item.role === 'string' ? item.role : undefined,
       source: typeof item.source === 'string' ? item.source : undefined,
+      mime_type: typeof item.mime_type === 'string' ? item.mime_type : undefined,
     }))
     .filter((item) => item.url || item.caption || item.type);
 };
+
+const fileToMomentMedia = (file: File) => new Promise<MomentMedia>((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const mime = file.type || 'application/octet-stream';
+    const type: MomentMedia['type'] = mime.startsWith('image/') ? 'image' : mime.startsWith('audio/') ? 'audio' : mime.startsWith('video/') ? 'video' : 'media';
+    resolve({ type, url: String(reader.result ?? ''), caption: file.name, role: 'memory_hook', source: 'user_upload', mime_type: mime });
+  };
+  reader.onerror = () => reject(reader.error);
+  reader.readAsDataURL(file);
+});
+
+const buildMomentPayload = (seed: FridaySegment | undefined, selectedTags: string[], customMeme: string[], media: MomentMedia[], existing?: MomentPayload): MomentPayload => ({
+  ...(seed?.payload ?? {}),
+  ...(existing ?? {}),
+  meme: unique([...segmentMeme(seed), ...stringArray(existing?.meme), ...customMeme]),
+  media,
+  selected_tags: selectedTags,
+});
 
 function createFridayExport(track: Track, moments: Moment[], segments: FridaySegment[]) {
   return {
@@ -93,7 +117,8 @@ function createFridayExport(track: Track, moments: Moment[], segments: FridaySeg
         },
         payload: {
           ...(inherited?.payload ?? {}),
-          meme: unique([...segmentMeme(inherited), ...moment.tags]),
+          ...(moment.payload ?? {}),
+          meme: unique([...segmentMeme(inherited), ...stringArray(moment.payload?.meme), ...moment.tags]),
           mood: moment.mood,
           tags: moment.tags,
           moment_ids: [moment.id],
@@ -171,11 +196,12 @@ function App() {
 
   const seedIndexOf = (seed?: FridaySegment) => Math.max(0, segments.findIndex((segment) => segment === seed));
 
-  const createMomentFromSeed = (seed: FridaySegment | undefined, content: string) => {
+  const createMomentFromSeed = (seed: FridaySegment | undefined, content: string, tags?: string[], payload?: MomentPayload) => {
     const audio = audioRef.current;
     const timestamp = audio?.currentTime ?? currentTime;
     const anchorTime = seed?.peak_t ?? timestamp;
     const seedIndex = seedIndexOf(seed);
+    const nextTags = tags ?? tagOptionsFromSegment(seed).slice(0, 5);
     const moment = addMoment({
       track_id: track.id,
       timestamp_s: anchorTime,
@@ -184,7 +210,8 @@ function App() {
       public_segment_id: seed ? segmentId(track.id, seed, seedIndex) : undefined,
       note: content || seed?.content || '这一刻值得记住。',
       mood: unique([...stringArray(seed?.payload?.mood), ...(seed?.function ?? [])]).slice(0, 4),
-      tags: momentTags(seed),
+      tags: nextTags,
+      payload: payload ?? buildMomentPayload(seed, nextTags, [], mediaFromPayload(seed?.payload)),
     });
     setSelectedMomentId(moment.id);
     return moment;
@@ -223,17 +250,62 @@ function App() {
   };
 
   const startEdit = (surface: MomentSurfaceData) => {
-    setEditDraft({ surfaceId: surface.id, momentId: surface.momentId, seedSegment: surface.seedSegment, content: surface.content });
+    setEditDraft({
+      surfaceId: surface.id,
+      momentId: surface.momentId,
+      seedSegment: surface.seedSegment,
+      content: surface.content,
+      selectedTags: surface.tags,
+      customMeme: [],
+      tagInput: '',
+      media: surface.media,
+    });
+  };
+
+  const toggleDraftTag = (tag: string) => {
+    setEditDraft((draft) => {
+      if (!draft) return draft;
+      const exists = draft.selectedTags.includes(tag);
+      return { ...draft, selectedTags: exists ? draft.selectedTags.filter((item) => item !== tag) : unique([...draft.selectedTags, tag]) };
+    });
+  };
+
+  const addCustomTag = () => {
+    setEditDraft((draft) => {
+      if (!draft) return draft;
+      const tag = draft.tagInput.trim();
+      if (!tag) return draft;
+      return {
+        ...draft,
+        selectedTags: unique([...draft.selectedTags, tag]),
+        customMeme: unique([...draft.customMeme, tag]),
+        tagInput: '',
+      };
+    });
+  };
+
+  const addMediaFiles = async (files: FileList | null) => {
+    if (!files?.length) return;
+    const uploaded = await Promise.all(Array.from(files).map(fileToMomentMedia));
+    setEditDraft((draft) => draft ? { ...draft, media: [...draft.media, ...uploaded] } : draft);
+  };
+
+  const removeMedia = (index: number) => {
+    setEditDraft((draft) => draft ? { ...draft, media: draft.media.filter((_, mediaIndex) => mediaIndex !== index) } : draft);
   };
 
   const saveEdit = () => {
     if (!editDraft) return;
     const content = editDraft.content.trim() || '这一刻值得记住。';
+    const existingMoment = editDraft.momentId ? moments.find((moment) => moment.id === editDraft.momentId) : undefined;
+    const seed = editDraft.seedSegment ?? currentSegment;
+    const payload = buildMomentPayload(seed, editDraft.selectedTags, editDraft.customMeme, editDraft.media, existingMoment?.payload);
     if (editDraft.momentId) {
-      updateMoment(editDraft.momentId, { note: content });
+      updateMoment(editDraft.momentId, { note: content, tags: editDraft.selectedTags, payload });
       setSelectedMomentId(editDraft.momentId);
+      setToast('已保存修改');
     } else {
-      const moment = createMomentFromSeed(editDraft.seedSegment ?? currentSegment, content);
+      const moment = createMomentFromSeed(seed, content, editDraft.selectedTags, payload);
       setToast(`已保存 ${formatTime(moment.timestamp_s)}`);
     }
     setEditDraft(null);
@@ -312,6 +384,11 @@ function App() {
             editDraft={editDraft}
             onStartEdit={startEdit}
             onEditContent={(content) => setEditDraft((draft) => draft ? { ...draft, content } : draft)}
+            onToggleTag={toggleDraftTag}
+            onTagInput={(tagInput) => setEditDraft((draft) => draft ? { ...draft, tagInput } : draft)}
+            onAddCustomTag={addCustomTag}
+            onAddMedia={addMediaFiles}
+            onRemoveMedia={removeMedia}
             onSaveEdit={saveEdit}
             onCancelEdit={() => setEditDraft(null)}
           />
@@ -328,17 +405,21 @@ function TopBar({ view, onView, onExport }: { view: View; onView: (view: View) =
 }
 
 function toSurfaceData(moment: Moment | undefined, segment: FridaySegment | undefined, fallbackId: string): MomentSurfaceData {
+  const tagOptions = tagOptionsFromSegment(segment, [...(moment?.tags ?? []), ...stringArray(moment?.payload?.meme)]);
+  const tags = moment?.tags.length ? moment.tags.slice(0, 5) : tagOptions.slice(0, 5);
+  const media = mediaFromPayload(moment?.payload).length ? mediaFromPayload(moment?.payload) : mediaFromPayload(segment?.payload);
   return {
     id: moment?.id ?? fallbackId,
     momentId: moment?.id,
     seedSegment: segment,
     content: moment?.note || segment?.content || '这一刻值得记住。',
-    tags: segment ? momentTags(segment, moment?.tags ?? []) : (moment?.tags ?? []).slice(0, 5),
-    media: segmentMedia(segment?.payload),
+    tags,
+    tagOptions,
+    media,
   };
 }
 
-function HeroBoard({ analyser, seedSegment, activeMoments, selectedMoment, segmentForMoment, currentTime, duration, isPlaying, editDraft, onStartEdit, onEditContent, onSaveEdit, onCancelEdit }: { analyser: AnalyserNode | null; seedSegment?: FridaySegment; activeMoments: Moment[]; selectedMoment?: Moment; segmentForMoment: (moment?: Moment) => FridaySegment | undefined; currentTime: number; duration: number; isPlaying: boolean; editDraft: EditDraft | null; onStartEdit: (surface: MomentSurfaceData) => void; onEditContent: (content: string) => void; onSaveEdit: () => void; onCancelEdit: () => void }) {
+function HeroBoard({ analyser, seedSegment, activeMoments, selectedMoment, segmentForMoment, currentTime, duration, isPlaying, editDraft, onStartEdit, onEditContent, onToggleTag, onTagInput, onAddCustomTag, onAddMedia, onRemoveMedia, onSaveEdit, onCancelEdit }: { analyser: AnalyserNode | null; seedSegment?: FridaySegment; activeMoments: Moment[]; selectedMoment?: Moment; segmentForMoment: (moment?: Moment) => FridaySegment | undefined; currentTime: number; duration: number; isPlaying: boolean; editDraft: EditDraft | null; onStartEdit: (surface: MomentSurfaceData) => void; onEditContent: (content: string) => void; onToggleTag: (tag: string) => void; onTagInput: (tag: string) => void; onAddCustomTag: () => void; onAddMedia: (files: FileList | null) => void; onRemoveMedia: (index: number) => void; onSaveEdit: () => void; onCancelEdit: () => void }) {
   const visibleMoments = activeMoments.length ? activeMoments : selectedMoment ? [selectedMoment] : [];
   const mainMoment = visibleMoments[0];
   const mainSegment = mainMoment ? segmentForMoment(mainMoment) : seedSegment;
@@ -349,27 +430,35 @@ function HeroBoard({ analyser, seedSegment, activeMoments, selectedMoment, segme
     <section className="hero-board card-shell clean-board">
       <Spectrogram analyser={analyser} isPlaying={isPlaying} />
       <div className="bulletin-layer">
-        <MomentSurface surface={mainSurface} size="primary" editDraft={editDraft} onStartEdit={onStartEdit} onEditContent={onEditContent} onSaveEdit={onSaveEdit} onCancelEdit={onCancelEdit} />
-        {sideSurfaces.map((surface, index) => <MomentSurface key={surface.id} surface={surface} size="mini" index={index} editDraft={editDraft} onStartEdit={onStartEdit} onEditContent={onEditContent} onSaveEdit={onSaveEdit} onCancelEdit={onCancelEdit} />)}
+        <MomentSurface surface={mainSurface} size="primary" editDraft={editDraft} onStartEdit={onStartEdit} onEditContent={onEditContent} onToggleTag={onToggleTag} onTagInput={onTagInput} onAddCustomTag={onAddCustomTag} onAddMedia={onAddMedia} onRemoveMedia={onRemoveMedia} onSaveEdit={onSaveEdit} onCancelEdit={onCancelEdit} />
+        {sideSurfaces.map((surface, index) => <MomentSurface key={surface.id} surface={surface} size="mini" index={index} editDraft={editDraft} onStartEdit={onStartEdit} onEditContent={onEditContent} onToggleTag={onToggleTag} onTagInput={onTagInput} onAddCustomTag={onAddCustomTag} onAddMedia={onAddMedia} onRemoveMedia={onRemoveMedia} onSaveEdit={onSaveEdit} onCancelEdit={onCancelEdit} />)}
       </div>
       <div className="timeline-spike" style={{ left: `${Math.min(88, Math.max(12, (currentTime / Math.max(duration, 1)) * 100))}%` }} />
     </section>
   );
 }
 
-function MomentSurface({ surface, size, index = 0, editDraft, onStartEdit, onEditContent, onSaveEdit, onCancelEdit }: { surface: MomentSurfaceData; size: 'primary' | 'mini'; index?: number; editDraft: EditDraft | null; onStartEdit: (surface: MomentSurfaceData) => void; onEditContent: (content: string) => void; onSaveEdit: () => void; onCancelEdit: () => void }) {
+function MomentSurface({ surface, size, index = 0, editDraft, onStartEdit, onEditContent, onToggleTag, onTagInput, onAddCustomTag, onAddMedia, onRemoveMedia, onSaveEdit, onCancelEdit }: { surface: MomentSurfaceData; size: 'primary' | 'mini'; index?: number; editDraft: EditDraft | null; onStartEdit: (surface: MomentSurfaceData) => void; onEditContent: (content: string) => void; onToggleTag: (tag: string) => void; onTagInput: (tag: string) => void; onAddCustomTag: () => void; onAddMedia: (files: FileList | null) => void; onRemoveMedia: (index: number) => void; onSaveEdit: () => void; onCancelEdit: () => void }) {
   const isEditing = editDraft?.surfaceId === surface.id;
   return (
     <article className={`${size === 'primary' ? 'bulletin-card' : `recall-card recall-${index % 4}`} ${isEditing ? 'editing-surface' : ''}`} onClick={() => !isEditing && onStartEdit(surface)} role="button" tabIndex={0} onKeyDown={(event) => { if (!isEditing && (event.key === 'Enter' || event.key === ' ')) onStartEdit(surface); }}>
       {isEditing ? (
         <div className="surface-editor" onClick={(event) => event.stopPropagation()}>
           <textarea value={editDraft.content} onChange={(event) => onEditContent(event.target.value)} autoFocus />
+          <details className="tag-picker" open>
+            <summary>相关标签</summary>
+            <div className="tag-options">
+              {surface.tagOptions.map((tag) => <label key={tag}><input type="checkbox" checked={editDraft.selectedTags.includes(tag)} onChange={() => onToggleTag(tag)} />{tag}</label>)}
+            </div>
+          </details>
+          <div className="custom-tag-row"><input value={editDraft.tagInput} placeholder="手动输入新标签，会放入 meme" onChange={(event) => onTagInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); onAddCustomTag(); } }} /><button type="button" onClick={onAddCustomTag}>添加</button></div>
+          <div className="media-editor"><label>上传 media<input type="file" accept="image/*,audio/*,video/*" multiple onChange={(event) => { void onAddMedia(event.target.files); event.currentTarget.value = ''; }} /></label>{editDraft.media.length ? <div className="media-list">{editDraft.media.map((item, mediaIndex) => <span key={`${item.caption ?? item.url ?? item.type}-${mediaIndex}`}>{item.type}{item.caption ? ` · ${item.caption}` : ''}<button type="button" onClick={() => onRemoveMedia(mediaIndex)}>×</button></span>)}</div> : null}</div>
           <div className="surface-actions"><button className="remember-action" onClick={onSaveEdit}>保存</button><button onClick={onCancelEdit}>取消</button></div>
         </div>
       ) : (
         <>
           <h2>{surface.content}</h2>
-          {surface.tags.length ? <div className="tag-row moment-hooks">{surface.tags.map((item) => <span key={item}>{item}</span>)}</div> : null}
+          {surface.tags.length ? <div className="tag-row moment-hooks">{surface.tags.slice(0, 5).map((item) => <span key={item}>{item}</span>)}</div> : null}
           {surface.media.length ? <div className="media-hooks">{surface.media.slice(0, 3).map((item, mediaIndex) => <span key={`${item.url ?? item.caption ?? item.type}-${mediaIndex}`}>{item.type ?? 'media'}{item.caption ? ` · ${item.caption}` : ''}</span>)}</div> : null}
         </>
       )}
