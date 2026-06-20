@@ -13,8 +13,69 @@
   display: block;
 }
 
+.transport-card {
+  min-height: auto;
+  padding: 24px;
+  grid-template-columns: max-content 72px minmax(280px, 1fr);
+  grid-template-areas: "actions play progress";
+  gap: 24px;
+  align-items: center;
+}
+
+.shortcut {
+  display: none !important;
+}
+
 .transport-actions {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-area: actions;
+  display: flex;
+  grid-template-columns: none;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.transport-actions button {
+  min-height: 64px;
+  padding: 0 22px;
+  border-radius: 14px;
+  font-size: 17px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.controls {
+  grid-area: play;
+  gap: 0;
+}
+
+.controls button[title="previous"],
+.controls button[title="next"] {
+  display: none;
+}
+
+.controls .play {
+  width: 66px;
+  height: 66px;
+  border-radius: 15px;
+}
+
+.progress-area {
+  grid-area: progress;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  min-width: 0;
+}
+
+.progress-area > span {
+  display: none;
+}
+
+.progress-line {
+  width: 100%;
+  min-width: 0;
+  height: 54px;
 }
 
 .creative-mini {
@@ -114,6 +175,17 @@
 }
 
 @media (max-width: 1200px) {
+  .transport-card {
+    grid-template-columns: 1fr 72px;
+    grid-template-areas:
+      "actions play"
+      "progress progress";
+  }
+
+  .transport-actions {
+    flex-wrap: wrap;
+  }
+
   .bulletin-card,
   .recall-card,
   .recall-card.editing-surface {
@@ -123,7 +195,22 @@
 }
 
 @media (max-width: 720px) {
-  .transport-actions {
+  .transport-card {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "play"
+      "progress"
+      "actions";
+    padding: 20px;
+  }
+
+  .transport-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .transport-actions button {
+    width: 100%;
   }
 }
