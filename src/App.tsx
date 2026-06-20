@@ -438,6 +438,23 @@ function HeroBoard({ analyser, seedSegment, activeMoments, selectedMoment, segme
   );
 }
 
+function MediaPreview({ item }: { item: MomentMedia }) {
+  const label = item.caption ?? item.type;
+  if (item.type === 'image' && item.url) {
+    return <figure className="media-preview image-preview"><img src={item.url} alt={label ?? 'Moment image'} /><figcaption>{label}</figcaption></figure>;
+  }
+  if (item.type === 'audio' && item.url) {
+    return <figure className="media-preview audio-preview"><figcaption>{label}</figcaption><audio src={item.url} controls /></figure>;
+  }
+  if (item.type === 'video' && item.url) {
+    return <figure className="media-preview video-preview"><video src={item.url} controls muted playsInline /><figcaption>{label}</figcaption></figure>;
+  }
+  if (item.url) {
+    return <a className="media-preview file-preview" href={item.url} target="_blank" rel="noreferrer">{label}</a>;
+  }
+  return <span className="media-preview file-preview">{label}</span>;
+}
+
 function MomentSurface({ surface, size, index = 0, editDraft, onStartEdit, onEditContent, onToggleTag, onTagInput, onAddCustomTag, onAddMedia, onRemoveMedia, onSaveEdit, onCancelEdit }: { surface: MomentSurfaceData; size: 'primary' | 'mini'; index?: number; editDraft: EditDraft | null; onStartEdit: (surface: MomentSurfaceData) => void; onEditContent: (content: string) => void; onToggleTag: (tag: string) => void; onTagInput: (tag: string) => void; onAddCustomTag: () => void; onAddMedia: (files: FileList | null) => void; onRemoveMedia: (index: number) => void; onSaveEdit: () => void; onCancelEdit: () => void }) {
   const isEditing = editDraft?.surfaceId === surface.id;
   return (
@@ -459,7 +476,7 @@ function MomentSurface({ surface, size, index = 0, editDraft, onStartEdit, onEdi
         <>
           <h2>{surface.content}</h2>
           {surface.tags.length ? <div className="tag-row moment-hooks">{surface.tags.slice(0, 5).map((item) => <span key={item}>{item}</span>)}</div> : null}
-          {surface.media.length ? <div className="media-hooks">{surface.media.slice(0, 3).map((item, mediaIndex) => <span key={`${item.url ?? item.caption ?? item.type}-${mediaIndex}`}>{item.type ?? 'media'}{item.caption ? ` · ${item.caption}` : ''}</span>)}</div> : null}
+          {surface.media.length ? <div className="media-previews">{surface.media.slice(0, size === 'primary' ? 3 : 1).map((item, mediaIndex) => <MediaPreview key={`${item.url ?? item.caption ?? item.type}-${mediaIndex}`} item={item} />)}</div> : null}
         </>
       )}
     </article>
