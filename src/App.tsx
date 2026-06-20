@@ -11,6 +11,7 @@ type PressState = { startTime: number; startedAtMs: number; long: boolean; timer
 type MomentSurfaceData = {
   id: string;
   content: string;
+  placeholder?: string;
   tags: string[];
   tagOptions: string[];
   media: MomentMedia[];
@@ -30,6 +31,7 @@ type EditDraft = {
 };
 
 const repoUrl = 'https://github.com/haowang2025/militai-nostalgia';
+const emptyMomentPrompt = '写下这一刻你想起了什么？可以是一句话、一个人、一张画面。';
 
 const formatTime = (value: number) => {
   const safe = Math.max(0, Number.isFinite(value) ? value : 0);
@@ -226,13 +228,28 @@ function App() {
       start_s: rangeStart,
       end_s: rangeEnd,
       public_segment_id: seed ? segmentId(track.id, seed, seedIndex) : undefined,
-      note: content || seed?.content || '这一刻值得记住。',
+      note: content,
       mood: unique([...stringArray(seed?.payload?.mood), ...(seed?.function ?? [])]).slice(0, 4),
       tags: nextTags,
       payload: payload ?? buildMomentPayload(seed, nextTags, [], mediaFromPayload(seed?.payload)),
     });
     setSelectedMomentId(moment.id);
     return moment;
+  };
+
+  const openMomentEditor = (moment: Moment, seed?: FridaySegment) => {
+    const surface = toSurfaceData(moment, seed, moment.id);
+    setDeleteWarningOpen(false);
+    setEditDraft({
+      surfaceId: surface.id,
+      momentId: surface.momentId,
+      seedSegment: surface.seedSegment,
+      content: surface.content,
+      selectedTags: moment.tags.slice(0, 5),
+      customMeme: [],
+      tagInput: '',
+      media: surface.media,
+    });
   };
 
   const ensureAudioGraph = async () => {
@@ -260,8 +277,9 @@ function App() {
   const recordMoment = () => {
     const timestamp = audioTime();
     const seed = seedAt(timestamp);
-    const moment = createMomentFromSeed(seed, seed?.content ?? '这一刻值得记住。');
-    setToast(`已记录 ${formatTime(moment.timestamp_s)}`);
+    const moment = createMomentFromSeed(seed, '', [], buildMomentPayload(seed, [], [], []));
+    setToast('已创建空白 Moment，写下这一刻你想起了什么');
+    openMomentEditor(moment, seed);
     addResponse({ title: '米粒太的陪伴', body: companionSeed[Math.floor(Math.random() * companionSeed.length)], tone: 'gentle' });
   };
 
@@ -270,8 +288,9 @@ function App() {
     const rangeEnd = clampTime(Math.max(start, end));
     const middle = (rangeStart + rangeEnd) / 2;
     const seed = seedAt(middle) ?? seedAt(rangeStart);
-    const moment = createMomentFromSeed(seed, seed?.content ?? '这一段值得记住。', undefined, undefined, { start: rangeStart, end: rangeEnd });
-    setToast(`已记录区间 ${formatTime(moment.start_s)} - ${formatTime(moment.end_s)}`);
+    const moment = createMomentFromSeed(seed, '', [], buildMomentPayload(seed, [], [], []), { start: rangeStart, end: rangeEnd });
+    setToast(`已创建空白区间 Moment：${formatTime(moment.start_s)} - ${formatTime(moment.end_s)}`);
+    openMomentEditor(moment, seed);
     addResponse({ title: '米粒太的陪伴', body: companionSeed[Math.floor(Math.random() * companionSeed.length)], tone: 'gentle' });
   };
 
@@ -373,7 +392,11 @@ function App() {
 
   const saveEdit = () => {
     if (!editDraft) return;
-    const content = editDraft.content.trim() || '这一刻值得记住。';
+    const content = editDraft.content.trim();
+    if (!content) {
+      setToast('先写一句这一刻让你想起了什么');
+      return;
+    }
     const existingMoment = editDraft.momentId ? moments.find((moment) => moment.id === editDraft.momentId) : undefined;
     const seed = editDraft.seedSegment ?? currentSegment;
     const payload = buildMomentPayload(seed, editDraft.selectedTags, editDraft.customMeme, editDraft.media, existingMoment?.payload);
@@ -417,7 +440,7 @@ function App() {
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
       if (event.code === 'Space' && !event.repeat) {
         event.preventDefault();
-        recordMoment();
+        if (!editDraft) recordMoment();
       }
     };
     window.addEventListener('keydown', handler);
@@ -504,9 +527,10 @@ function MediaLightbox({ item, onClose }: { item: MomentMedia; onClose: () => vo
 
 function toSurfaceData(moment: Moment | undefined, segment: FridaySegment | undefined, fallbackId: string): MomentSurfaceData {
   const tagOptions = tagOptionsFromSegment(segment, [...(moment?.tags ?? []), ...stringArray(moment?.payload?.meme)]);
-  const tags = moment?.tags.length ? moment.tags.slice(0, 5) : tagOptions.slice(0, 5);
-  const media = mediaFromPayload(moment?.payload).length ? mediaFromPayload(moment?.payload) : mediaFromPayload(segment?.payload);
-  return { id: moment?.id ?? fallbackId, momentId: moment?.id, seedSegment: segment, content: moment?.note || segment?.content || '这一刻值得记住。', tags, tagOptions, media };
+  const tags = moment ? moment.tags.slice(0, 5) : tagOptions.slice(0, 5);
+  const media = moment ? mediaFromPayload(moment.payload) : mediaFromPayload(segment?.payload);
+  const content = moment ? moment.note : segment?.content || '这一刻值得记住。';
+  return { id: moment?.id ?? fallbackId, momentId: moment?.id, seedSegment: segment, content, placeholder: moment ? emptyMomentPrompt : undefined, tags, tagOptions, media };
 }
 
 function HeroBoard({ analyser, seedSegment, activeMoments, selectedMoment, segmentForMoment, currentTime, duration, isPlaying, editDraft, deleteWarningOpen, onStartEdit, onEditContent, onToggleTag, onTagInput, onAddCustomTag, onAddMedia, onRemoveMedia, onRequestDelete, onConfirmDelete, onCancelDelete, onSaveEdit, onCancelEdit, onPreviewMedia }: { analyser: AnalyserNode | null; seedSegment?: FridaySegment; activeMoments: Moment[]; selectedMoment?: Moment; segmentForMoment: (moment?: Moment) => FridaySegment | undefined; currentTime: number; duration: number; isPlaying: boolean; editDraft: EditDraft | null; deleteWarningOpen: boolean; onStartEdit: (surface: MomentSurfaceData) => void; onEditContent: (content: string) => void; onToggleTag: (tag: string) => void; onTagInput: (tag: string) => void; onAddCustomTag: () => void; onAddMedia: (files: FileList | null) => void; onRemoveMedia: (index: number) => void; onRequestDelete: () => void; onConfirmDelete: () => void; onCancelDelete: () => void; onSaveEdit: () => void; onCancelEdit: () => void; onPreviewMedia: (item: MomentMedia) => void }) {
@@ -535,7 +559,8 @@ function MediaPreview({ item, onPreview }: { item: MomentMedia; onPreview: (item
 function MomentSurface({ surface, size, index = 0, editDraft, deleteWarningOpen, onStartEdit, onEditContent, onToggleTag, onTagInput, onAddCustomTag, onAddMedia, onRemoveMedia, onRequestDelete, onConfirmDelete, onCancelDelete, onSaveEdit, onCancelEdit, onPreviewMedia }: { surface: MomentSurfaceData; size: 'primary' | 'mini'; index?: number; editDraft: EditDraft | null; deleteWarningOpen: boolean; onStartEdit: (surface: MomentSurfaceData) => void; onEditContent: (content: string) => void; onToggleTag: (tag: string) => void; onTagInput: (tag: string) => void; onAddCustomTag: () => void; onAddMedia: (files: FileList | null) => void; onRemoveMedia: (index: number) => void; onRequestDelete: () => void; onConfirmDelete: () => void; onCancelDelete: () => void; onSaveEdit: () => void; onCancelEdit: () => void; onPreviewMedia: (item: MomentMedia) => void }) {
   const isEditing = editDraft?.surfaceId === surface.id;
   const canDelete = Boolean(editDraft?.momentId);
-  return <article className={`${size === 'primary' ? 'bulletin-card' : `recall-card recall-${index % 4}`} ${isEditing ? 'editing-surface' : ''}`} onClick={() => !isEditing && onStartEdit(surface)} role="button" tabIndex={0} onKeyDown={(event) => { if (!isEditing && (event.key === 'Enter' || event.key === ' ')) onStartEdit(surface); }}>{isEditing ? <div className="surface-editor" onClick={(event) => event.stopPropagation()}>{canDelete ? <button className="delete-moment-button" type="button" onClick={onRequestDelete}>删除</button> : null}<textarea value={editDraft.content} onChange={(event) => onEditContent(event.target.value)} autoFocus /><details className="tag-picker" open><summary>相关标签</summary><div className="tag-options">{surface.tagOptions.map((tag) => <label key={tag}><input type="checkbox" checked={editDraft.selectedTags.includes(tag)} onChange={() => onToggleTag(tag)} />{tag}</label>)}</div></details><div className="custom-tag-row"><input value={editDraft.tagInput} placeholder="手动输入新标签，会放入 meme" onChange={(event) => onTagInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); onAddCustomTag(); } }} /><button type="button" onClick={onAddCustomTag}>添加</button></div><div className="media-editor"><label>上传 media<input type="file" accept="image/*,audio/*,video/*" multiple onChange={(event) => { void onAddMedia(event.target.files); event.currentTarget.value = ''; }} /></label>{editDraft.media.length ? <div className="media-list">{editDraft.media.map((item, mediaIndex) => <span key={`${item.caption ?? item.url ?? item.type}-${mediaIndex}`}>{item.type}{item.caption ? ` · ${item.caption}` : ''}<button type="button" onClick={() => onRemoveMedia(mediaIndex)}>×</button></span>)}</div> : null}</div>{deleteWarningOpen && canDelete ? <div className="delete-warning"><strong>删除这个 Moment？</strong><span>音乐已暂停。删除后它会从本地移除，但不会影响原始 Friday JSON。</span><div><button type="button" className="danger-confirm" onClick={onConfirmDelete}>确认删除</button><button type="button" onClick={onCancelDelete}>保留</button></div></div> : null}<div className="surface-actions"><button className="remember-action" onClick={onSaveEdit}>保存</button><button onClick={onCancelEdit}>取消</button></div></div> : <><h2>{surface.content}</h2>{surface.tags.length ? <div className="tag-row moment-hooks">{surface.tags.slice(0, 5).map((item) => <span key={item}>{item}</span>)}</div> : null}{surface.media.length ? <div className="media-previews">{surface.media.slice(0, size === 'primary' ? 3 : 1).map((item, mediaIndex) => <MediaPreview key={`${item.url ?? item.caption ?? item.type}-${mediaIndex}`} item={item} onPreview={onPreviewMedia} />)}</div> : null}</>}</article>;
+  const displayedContent = surface.content || surface.placeholder || '这一刻值得记住。';
+  return <article className={`${size === 'primary' ? 'bulletin-card' : `recall-card recall-${index % 4}`} ${isEditing ? 'editing-surface' : ''}`} onClick={() => !isEditing && onStartEdit(surface)} role="button" tabIndex={0} onKeyDown={(event) => { if (!isEditing && (event.key === 'Enter' || event.key === ' ')) onStartEdit(surface); }}>{isEditing ? <div className="surface-editor" onClick={(event) => event.stopPropagation()}>{canDelete ? <button className="delete-moment-button" type="button" onClick={onRequestDelete}>删除</button> : null}<textarea value={editDraft.content} placeholder={surface.placeholder ?? emptyMomentPrompt} onChange={(event) => onEditContent(event.target.value)} autoFocus /><p className="moment-edit-hint">不用总结歌曲，写这一刻让你想到的人、画面、场景或一句话。</p><details className="tag-picker" open><summary>相关标签</summary><div className="tag-options">{surface.tagOptions.map((tag) => <label key={tag}><input type="checkbox" checked={editDraft.selectedTags.includes(tag)} onChange={() => onToggleTag(tag)} />{tag}</label>)}</div></details><div className="custom-tag-row"><input value={editDraft.tagInput} placeholder="手动输入新标签，会放入 meme" onChange={(event) => onTagInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); onAddCustomTag(); } }} /><button type="button" onClick={onAddCustomTag}>添加</button></div><div className="media-editor"><label>上传 media<input type="file" accept="image/*,audio/*,video/*" multiple onChange={(event) => { void onAddMedia(event.target.files); event.currentTarget.value = ''; }} /></label>{editDraft.media.length ? <div className="media-list">{editDraft.media.map((item, mediaIndex) => <span key={`${item.caption ?? item.url ?? item.type}-${mediaIndex}`}>{item.type}{item.caption ? ` · ${item.caption}` : ''}<button type="button" onClick={() => onRemoveMedia(mediaIndex)}>×</button></span>)}</div> : null}</div>{deleteWarningOpen && canDelete ? <div className="delete-warning"><strong>删除这个 Moment？</strong><span>音乐已暂停。删除后它会从本地移除，但不会影响原始 Friday JSON。</span><div><button type="button" className="danger-confirm" onClick={onConfirmDelete}>确认删除</button><button type="button" onClick={onCancelDelete}>保留</button></div></div> : null}<div className="surface-actions"><button className="remember-action" onClick={onSaveEdit}>保存</button><button onClick={onCancelEdit}>取消</button></div></div> : <><h2 className={!surface.content ? 'empty-moment-copy' : undefined}>{displayedContent}</h2>{surface.tags.length ? <div className="tag-row moment-hooks">{surface.tags.slice(0, 5).map((item) => <span key={item}>{item}</span>)}</div> : null}{surface.media.length ? <div className="media-previews">{surface.media.slice(0, size === 'primary' ? 3 : 1).map((item, mediaIndex) => <MediaPreview key={`${item.url ?? item.caption ?? item.type}-${mediaIndex}`} item={item} onPreview={onPreviewMedia} />)}</div> : null}</>}</article>;
 }
 
 function Spectrogram({ analyser, isPlaying }: { analyser: AnalyserNode | null; isPlaying: boolean }) {
