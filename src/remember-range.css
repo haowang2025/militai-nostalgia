@@ -2,6 +2,41 @@
   display: none !important;
 }
 
+.recall-card.editing-surface {
+  left: 50% !important;
+  right: auto !important;
+  top: 18px !important;
+  bottom: auto !important;
+  width: min(560px, calc(100% - 32px));
+  max-width: calc(100% - 32px);
+  transform: translateX(-50%);
+}
+
+.recall-card.editing-surface .surface-editor {
+  width: 100%;
+  min-width: 0;
+}
+
+.recall-card.editing-surface .surface-editor textarea,
+.recall-card.editing-surface .custom-tag-row input,
+.recall-card.editing-surface .tag-picker,
+.recall-card.editing-surface .media-editor {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.recall-card.editing-surface .tag-options,
+.recall-card.editing-surface .media-list {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.recall-card.editing-surface .delete-moment-button {
+  position: static;
+  transform: none;
+  justify-self: start;
+}
+
 .hold-range {
   position: absolute;
   z-index: 2;
@@ -49,4 +84,15 @@
   height: auto;
   max-width: 100%;
   object-fit: contain;
+}
+
+@media (max-width: 720px) {
+  .recall-card.editing-surface {
+    left: 0 !important;
+    right: auto !important;
+    top: auto !important;
+    width: 100%;
+    max-width: 100%;
+    transform: none;
+  }
 }
