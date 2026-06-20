@@ -1,5 +1,7 @@
 export type RecallStyle = 'silent' | 'gentle' | 'explicit';
 
+export type FridayPayload = Record<string, unknown>;
+
 export type FridaySegment = {
   id?: string;
   start: number;
@@ -21,6 +23,7 @@ export type FridaySegment = {
       meme: string[];
     };
   };
+  payload?: FridayPayload;
 };
 
 export type Track = {
