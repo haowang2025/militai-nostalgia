@@ -7,6 +7,13 @@ type View = 'player' | 'library' | 'settings';
 type AudioGraph = { context: AudioContext; analyser: AnalyserNode; source: MediaElementAudioSourceNode };
 type PayloadMedia = { type?: string; url?: string; caption?: string; role?: string; source?: string };
 
+type MomentSurfaceData = {
+  id: string;
+  content: string;
+  tags: string[];
+  media: PayloadMedia[];
+};
+
 const formatTime = (value: number) => {
   const safe = Math.max(0, Number.isFinite(value) ? value : 0);
   const minutes = Math.floor(safe / 60).toString().padStart(2, '0');
@@ -25,22 +32,18 @@ const stringArray = (value: unknown): string[] => {
 
 const unique = (items: string[]) => Array.from(new Set(items.filter(Boolean)));
 
-const payloadChips = (payload?: FridayPayload) => {
-  if (!payload) return [];
-  const keys = ['meme', 'sensory', 'imagery', 'memory_hook', 'mood', 'tags', 'people', 'place', 'time_context'];
-  return unique(keys.flatMap((key) => stringArray(payload[key])));
-};
-
 const segmentMeme = (segment?: FridaySegment) => unique([
   ...(segment?.evidence.crowd_signals.meme ?? []),
   ...stringArray(segment?.payload?.meme),
 ]);
 
-const segmentHooks = (segment?: FridaySegment) => unique([
+const momentTags = (segment?: FridaySegment, fallback: string[] = []) => unique([
   ...segmentMeme(segment),
-  ...payloadChips(segment?.payload),
-  ...(segment?.function ?? []),
-]);
+  ...stringArray(segment?.payload?.sensory),
+  ...stringArray(segment?.payload?.imagery),
+  ...(segment?.evidence.danmaku_examples ?? []),
+  ...fallback,
+]).slice(0, 5);
 
 const segmentMedia = (payload?: FridayPayload): PayloadMedia[] => {
   const media = payload?.media;
@@ -147,7 +150,14 @@ function App() {
     [currentTime, moments],
   );
 
-  const selectedMoment = activeMoments[0] ?? moments.find((moment) => moment.id === selectedMomentId) ?? moments[0];
+  const selectedMoment = activeMoments.find((moment) => moment.id === selectedMomentId)
+    ?? activeMoments[0]
+    ?? moments.find((moment) => moment.id === selectedMomentId);
+
+  const segmentForMoment = (moment?: Moment) => {
+    if (!moment?.public_segment_id) return undefined;
+    return segments.find((segment, index) => segmentId(track.id, segment, index) === moment.public_segment_id);
+  };
 
   const ensureAudioGraph = async () => {
     const audio = audioRef.current;
@@ -177,7 +187,6 @@ function App() {
     const directIndex = segments.findIndex((segment) => timestamp >= segment.start && timestamp <= segment.end);
     const seed = directIndex >= 0 ? segments[directIndex] : currentSegment;
     const seedIndex = directIndex >= 0 ? directIndex : Math.max(0, segments.findIndex((segment) => segment === seed));
-    const hooks = segmentHooks(seed);
     const anchorTime = seed?.peak_t ?? timestamp;
     const moment = addMoment({
       track_id: track.id,
@@ -187,7 +196,7 @@ function App() {
       public_segment_id: seed ? segmentId(track.id, seed, seedIndex) : undefined,
       note: seed?.content ?? '这一刻值得记住。',
       mood: unique([...stringArray(seed?.payload?.mood), ...(seed?.function ?? [])]).slice(0, 4),
-      tags: hooks.slice(0, 6),
+      tags: momentTags(seed),
     });
     setSelectedMomentId(moment.id);
     setToast(`已记录 ${formatTime(anchorTime)}`);
@@ -254,7 +263,16 @@ function App() {
       {view === 'settings' ? <Settings /> : null}
       {view === 'player' ? (
         <>
-          <HeroBoard analyser={analyser} seedSegment={currentSegment} selectedMoment={selectedMoment} moments={moments} currentTime={currentTime} duration={duration} isPlaying={isPlaying} onRecord={recordMoment} />
+          <HeroBoard
+            analyser={analyser}
+            seedSegment={currentSegment}
+            activeMoments={activeMoments}
+            selectedMoment={selectedMoment}
+            segmentForMoment={segmentForMoment}
+            currentTime={currentTime}
+            duration={duration}
+            isPlaying={isPlaying}
+          />
           <Transport currentTime={currentTime} duration={duration} moments={moments} isPlaying={isPlaying} toast={toast} onToggle={togglePlay} onSeek={seek} onRecord={recordMoment} onExport={exportCurrent} />
           <ResponseArea selectedMoment={selectedMoment} onUpdateMoment={updateMoment} onExport={exportCurrent} />
         </>
@@ -267,19 +285,42 @@ function TopBar({ view, onView, onExport }: { view: View; onView: (view: View) =
   return <header className="topbar"><button className="logo" onClick={() => onView('player')}><span className="wave-mark"><i /><i /><i /><i /></span><strong>MilitAIre Nostalgia</strong><em>Beta</em></button><nav><button className={view === 'library' ? 'active' : ''} onClick={() => onView('library')}>Library</button><button onClick={onExport}>Export JSON</button><button className={view === 'settings' ? 'active' : ''} onClick={() => onView('settings')}>Settings</button><span className="avatar">米</span></nav></header>;
 }
 
-function HeroBoard({ analyser, seedSegment, selectedMoment, moments, currentTime, duration, isPlaying, onRecord }: { analyser: AnalyserNode | null; seedSegment?: FridaySegment; selectedMoment?: Moment; moments: Moment[]; currentTime: number; duration: number; isPlaying: boolean; onRecord: () => void }) {
-  return <section className="hero-board card-shell clean-board"><Spectrogram analyser={analyser} isPlaying={isPlaying} /><BulletinCard seedSegment={seedSegment} moment={selectedMoment} momentCount={moments.length} onRecord={onRecord} /><div className="timeline-spike" style={{ left: `${Math.min(88, Math.max(12, (currentTime / Math.max(duration, 1)) * 100))}%` }} /></section>;
+function toSurfaceData(moment: Moment | undefined, segment: FridaySegment | undefined, fallbackId: string): MomentSurfaceData {
+  return {
+    id: moment?.id ?? fallbackId,
+    content: moment?.note || segment?.content || '这一刻值得记住。',
+    tags: segment ? momentTags(segment, moment?.tags ?? []) : (moment?.tags ?? []).slice(0, 5),
+    media: segmentMedia(segment?.payload),
+  };
 }
 
-function BulletinCard({ seedSegment, moment, momentCount, onRecord }: { seedSegment?: FridaySegment; moment?: Moment; momentCount: number; onRecord: () => void }) {
-  const isUserMoment = Boolean(moment);
-  const inheritedHooks = segmentHooks(seedSegment);
-  const media = segmentMedia(seedSegment?.payload);
-  const meme = segmentMeme(seedSegment);
-  const content = moment?.note || seedSegment?.content || '这一刻值得记住。';
-  const chips = unique([...(moment?.tags ?? []), ...(moment?.mood ?? []), ...inheritedHooks]).slice(0, 8);
-  const evidence = seedSegment?.evidence.danmaku_examples ?? [];
-  return <article className="bulletin-card clean-segment"><div className="bulletin-meta"><span>{isUserMoment ? '我的 Moment' : '候选 Moment'}</span><small>{isUserMoment ? `${formatTime(moment!.timestamp_s)} 已保存` : seedSegment ? `${formatTime(seedSegment.start)} - ${formatTime(seedSegment.end)} · Friday seed` : '等待 Friday seed'}</small></div>{meme.length ? <div className="meme-line">{meme.slice(0, 3).join(' · ')}</div> : null}<h2>{content}</h2>{chips.length ? <div className="tag-row moment-hooks">{chips.map((item) => <span key={item}>{item}</span>)}</div> : null}{media.length ? <div className="media-hooks">{media.slice(0, 3).map((item, index) => <span key={`${item.url ?? item.caption ?? item.type}-${index}`}>{item.type ?? 'media'}{item.caption ? ` · ${item.caption}` : ''}</span>)}</div> : null}{evidence.length ? <p className="evidence-line">{evidence.slice(0, 2).join(' / ')}</p> : null}<button className="remember-action" onClick={onRecord}>{isUserMoment ? '再记一个点' : '记住这一刻'}</button><small className="moment-count">{momentCount} 个私人锚点保存在本地</small></article>;
+function HeroBoard({ analyser, seedSegment, activeMoments, selectedMoment, segmentForMoment, currentTime, duration, isPlaying }: { analyser: AnalyserNode | null; seedSegment?: FridaySegment; activeMoments: Moment[]; selectedMoment?: Moment; segmentForMoment: (moment?: Moment) => FridaySegment | undefined; currentTime: number; duration: number; isPlaying: boolean }) {
+  const visibleMoments = activeMoments.length ? activeMoments : selectedMoment ? [selectedMoment] : [];
+  const mainMoment = visibleMoments[0];
+  const mainSegment = mainMoment ? segmentForMoment(mainMoment) : seedSegment;
+  const mainSurface = toSurfaceData(mainMoment, mainSegment, 'seed');
+  const sideSurfaces = visibleMoments.slice(1, 5).map((moment) => toSurfaceData(moment, segmentForMoment(moment), moment.id));
+
+  return (
+    <section className="hero-board card-shell clean-board">
+      <Spectrogram analyser={analyser} isPlaying={isPlaying} />
+      <div className="bulletin-layer">
+        <MomentSurface surface={mainSurface} size="primary" />
+        {sideSurfaces.map((surface, index) => <MomentSurface key={surface.id} surface={surface} size="mini" index={index} />)}
+      </div>
+      <div className="timeline-spike" style={{ left: `${Math.min(88, Math.max(12, (currentTime / Math.max(duration, 1)) * 100))}%` }} />
+    </section>
+  );
+}
+
+function MomentSurface({ surface, size, index = 0 }: { surface: MomentSurfaceData; size: 'primary' | 'mini'; index?: number }) {
+  return (
+    <article className={size === 'primary' ? 'bulletin-card' : `recall-card recall-${index % 4}`}>
+      <h2>{surface.content}</h2>
+      {surface.tags.length ? <div className="tag-row moment-hooks">{surface.tags.map((item) => <span key={item}>{item}</span>)}</div> : null}
+      {surface.media.length ? <div className="media-hooks">{surface.media.slice(0, 3).map((item, mediaIndex) => <span key={`${item.url ?? item.caption ?? item.type}-${mediaIndex}`}>{item.type ?? 'media'}{item.caption ? ` · ${item.caption}` : ''}</span>)}</div> : null}
+    </article>
+  );
 }
 
 function Spectrogram({ analyser, isPlaying }: { analyser: AnalyserNode | null; isPlaying: boolean }) {
@@ -337,7 +378,7 @@ function ResponseArea({ selectedMoment, onUpdateMoment, onExport }: { selectedMo
   const [note, setNote] = useState(selectedMoment?.note ?? '');
   useEffect(() => setNote(selectedMoment?.note ?? ''), [selectedMoment?.id, selectedMoment?.note]);
   const saveNote = () => selectedMoment && onUpdateMoment(selectedMoment.id, { note });
-  return <section className="response-grid focused"><article className="analysis-card card-shell"><div className="panel-title"><h2>当前 Moment</h2><span>本地私有</span></div>{selectedMoment ? <><p>时间点：{formatTime(selectedMoment.timestamp_s)}，范围：{formatTime(selectedMoment.start_s)} - {formatTime(selectedMoment.end_s)}</p><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="给这一刻补写一句话" /><div className="tag-row">{[...selectedMoment.mood, ...selectedMoment.tags].map((tag) => <span key={tag}>{tag}</span>)}</div><div className="panel-actions"><button className="remember-action" onClick={saveNote}>保存补写</button><button onClick={onExport}>导出 Friday JSON</button></div></> : <p>还没有私人锚点。播放时点击“记住此刻”或按空格。</p>}</article><article className="letter-card card-shell"><div className="panel-title"><h2>米粒太反馈</h2><span>MCP 降级演示</span></div><p>{responses[0]?.body ?? '先把记录链路跑通：播放、保存、补写、导出。MCP 和 LLM 后续再接真实服务。'}</p><p>这里不替用户定义情绪，只把 Friday seed 和私人 Moment 放在一起，作为回忆召回的入口。</p><em>— MilitAIre</em></article></section>;
+  return <section className="response-grid focused"><article className="analysis-card card-shell"><div className="panel-title"><h2>当前 Moment</h2><span>本地私有</span></div>{selectedMoment ? <><p>时间点：{formatTime(selectedMoment.timestamp_s)}，范围：{formatTime(selectedMoment.start_s)} - {formatTime(selectedMoment.end_s)}</p><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="给这一刻补写一句话" /><div className="tag-row">{selectedMoment.tags.slice(0, 5).map((tag) => <span key={tag}>{tag}</span>)}</div><div className="panel-actions"><button className="remember-action" onClick={saveNote}>保存补写</button><button onClick={onExport}>导出 Friday JSON</button></div></> : <p>还没有私人锚点。播放时点击“记住此刻”或按空格。</p>}</article><article className="letter-card card-shell"><div className="panel-title"><h2>米粒太反馈</h2><span>MCP 降级演示</span></div><p>{responses[0]?.body ?? '先把记录链路跑通：播放、保存、补写、导出。MCP 和 LLM 后续再接真实服务。'}</p><p>这里不替用户定义情绪，只把 Friday seed 和私人 Moment 放在一起，作为回忆召回的入口。</p><em>— MilitAIre</em></article></section>;
 }
 
 function Library({ activeTrack, onPick }: { activeTrack: Track; onPick: (track: Track) => void }) {
