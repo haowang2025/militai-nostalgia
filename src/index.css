@@ -32,24 +32,29 @@ button { cursor: pointer; border: 0; color: inherit; background: transparent; }
 .topbar nav button:hover, .topbar nav button.active { background: rgba(154,164,95,.12); color: var(--olive-dark); }
 .avatar { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 999px; background: linear-gradient(135deg,#e8dcc5,#aeb67d); box-shadow: var(--shadow-soft); font-weight: 800; }
 
-.hero-board { position: relative; min-height: 500px; overflow: hidden; padding: 54px 56px; display: grid; grid-template-columns: minmax(560px, 1fr) 420px; gap: 42px; align-items: center; }
+.hero-board { position: relative; min-height: 520px; overflow: hidden; padding: 46px 56px; display: block; }
 .spectrogram { position: absolute; inset: auto 0 0 0; width: 100%; height: 360px; opacity: .82; pointer-events: none; mask-image: linear-gradient(to top, black 20%, rgba(0,0,0,.84) 70%, transparent 100%); }
 .timeline-spike { position: absolute; z-index: 2; bottom: 72px; height: 360px; width: 2px; background: linear-gradient(to top, rgba(154,164,95,.18), var(--olive)); }
 .timeline-spike::before { content: ''; position: absolute; top: -9px; left: -6px; width: 14px; height: 14px; border-radius: 50%; background: var(--olive); box-shadow: 0 0 0 6px rgba(154,164,95,.12); }
 
-.bulletin-card { position: relative; z-index: 4; width: min(680px, 100%); padding: 34px 36px; border: 1px solid rgba(0,0,0,.09); border-radius: 22px; background: rgba(255,255,255,.8); box-shadow: var(--shadow); backdrop-filter: blur(20px); }
-.bulletin-meta { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; color: #8a887f; }
-.bulletin-meta span { color: var(--olive-dark); background: var(--olive-soft); border-radius: 999px; padding: 6px 13px; font-size: 14px; }
-.meme-line { margin-bottom: 12px; color: var(--olive-dark); font-size: 18px; font-weight: 750; letter-spacing: .02em; }
-.bulletin-card h2 { margin: 0 0 22px; font-size: clamp(32px, 3.2vw, 58px); line-height: 1.14; letter-spacing: -0.055em; font-weight: 760; }
+.bulletin-layer { position: relative; z-index: 4; width: 100%; min-height: 420px; }
+.bulletin-card, .recall-card { border: 1px solid rgba(0,0,0,.09); background: rgba(255,255,255,.8); box-shadow: var(--shadow); backdrop-filter: blur(20px); }
+.bulletin-card { position: relative; width: min(720px, 100%); padding: 38px 40px; border-radius: 24px; }
+.bulletin-card h2 { margin: 0 0 22px; font-size: clamp(34px, 4.1vw, 72px); line-height: 1.08; letter-spacing: -0.06em; font-weight: 780; }
+.recall-card { position: absolute; width: 310px; padding: 22px 22px 20px; border-radius: 20px; }
+.recall-card h2 { margin: 0 0 14px; font-size: 25px; line-height: 1.18; letter-spacing: -0.04em; }
+.recall-0 { right: 11%; top: 12px; }
+.recall-1 { right: 2%; bottom: 58px; }
+.recall-2 { left: 45%; bottom: 8px; }
+.recall-3 { right: 28%; top: 175px; }
 .tag-row { display: flex; flex-wrap: wrap; gap: 10px; }
 .tag-row span { background: rgba(0,0,0,.045); color: #65655d; padding: 7px 14px; border-radius: 999px; font-size: 14px; }
 .moment-hooks span { background: rgba(154,164,95,.12); color: #6d763d; }
+.recall-card .tag-row { gap: 7px; }
+.recall-card .tag-row span { font-size: 12px; padding: 5px 9px; }
 .media-hooks { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
 .media-hooks span { border: 1px solid rgba(154,164,95,.22); background: rgba(255,255,255,.68); color: #6d763d; border-radius: 12px; padding: 10px 12px; font-size: 14px; }
-.evidence-line { margin: 18px 0 0; color: #77766e; line-height: 1.7; font-size: 15px; }
-.bulletin-card .remember-action { margin-top: 22px; }
-.moment-count { display: inline-block; margin-left: 14px; color: #9b998f; }
+.recall-card .media-hooks span { font-size: 12px; padding: 7px 9px; }
 
 .transport-card { min-height: 150px; margin-top: 20px; padding: 24px 42px; display: grid; grid-template-columns: 230px 1fr 220px 250px; gap: 28px; align-items: center; }
 .shortcut { display: flex; gap: 14px; align-items: center; color: #66645d; }
@@ -91,7 +96,9 @@ kbd { border: 1px solid rgba(0,0,0,.08); background: white; border-radius: 8px; 
 .settings-page input { border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.75); padding: 14px 16px; }
 
 @media (max-width: 1200px) {
-  .hero-board { grid-template-columns: 1fr; min-height: auto; padding: 30px; }
+  .hero-board { min-height: auto; padding: 30px; }
+  .bulletin-layer { min-height: auto; display: grid; gap: 14px; }
+  .recall-card { position: relative; inset: auto; width: min(520px, 100%); }
   .timeline-spike { display: none; }
   .transport-card { grid-template-columns: 1fr; }
   .response-grid.focused { grid-template-columns: 1fr; }
