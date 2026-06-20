@@ -174,7 +174,8 @@ function App() {
 
   const audioTime = () => audioRef.current?.currentTime ?? currentTime;
   const clampTime = (value: number) => Math.min(duration || track.duration_s, Math.max(0, value));
-  const seedAt = (time: number) => segments.find((segment) => time >= segment.start && time <= segment.end) ?? currentSegment;
+  const segmentAt = (time: number) => segments.find((segment) => time >= segment.start && time <= segment.end);
+  const seedAt = (time: number) => segmentAt(time) ?? currentSegment;
 
   useEffect(() => {
     fetch(track.friday_url)
@@ -200,8 +201,7 @@ function App() {
   );
 
   const selectedMoment = activeMoments.find((moment) => moment.id === selectedMomentId)
-    ?? activeMoments[0]
-    ?? moments.find((moment) => moment.id === selectedMomentId);
+    ?? activeMoments[0];
 
   const segmentForMoment = (moment?: Moment) => {
     if (!moment?.public_segment_id) return undefined;
@@ -274,8 +274,11 @@ function App() {
 
   const recordMoment = () => {
     const timestamp = audioTime();
-    const seed = seedAt(timestamp);
-    const moment = createMomentFromSeed(seed, '', [], buildMomentPayload(seed, [], [], []));
+    const seed = segmentAt(timestamp);
+    const moment = createMomentFromSeed(seed, '', [], buildMomentPayload(seed, [], [], []), {
+      start: Math.max(0, timestamp - 5),
+      end: Math.min(duration || track.duration_s, timestamp + 5),
+    });
     setToast('已创建空白 Moment，写下这一刻你想起了什么');
     openMomentEditor(moment, seed);
   };
@@ -284,7 +287,7 @@ function App() {
     const rangeStart = clampTime(Math.min(start, end));
     const rangeEnd = clampTime(Math.max(start, end));
     const middle = (rangeStart + rangeEnd) / 2;
-    const seed = seedAt(middle) ?? seedAt(rangeStart);
+    const seed = segmentAt(middle) ?? segmentAt(rangeStart);
     const moment = createMomentFromSeed(seed, '', [], buildMomentPayload(seed, [], [], []), { start: rangeStart, end: rangeEnd });
     setToast(`已创建空白区间 Moment：${formatTime(moment.start_s)} - ${formatTime(moment.end_s)}`);
     openMomentEditor(moment, seed);
@@ -492,7 +495,7 @@ function App() {
 }
 
 function TopBar({ view, onView }: { view: View; onView: (view: View) => void }) {
-  return <header className="topbar"><button className="logo" onClick={() => onView('player')}><span className="wave-mark"><i /><i /><i /><i /></span><strong>MilitAIre Nostalgia</strong><em>Beta</em></button><nav><button className={view === 'library' ? 'active' : ''} onClick={() => onView('library')}>Library</button><button className={view === 'settings' ? 'active' : ''} onClick={() => onView('settings')}>Settings</button><a className="avatar github-link" href={repoUrl} target="_blank" rel="noreferrer" aria-label="Open GitHub repository"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .7a11.3 11.3 0 0 0-3.6 22c.57.1.78-.25.78-.55v-2.1c-3.18.7-3.85-1.36-3.85-1.36-.52-1.32-1.27-1.67-1.27-1.67-1.04-.72.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.02 1.75 2.68 1.25 3.33.95.1-.74.4-1.25.72-1.54-2.54-.29-5.22-1.27-5.22-5.65 0-1.25.45-2.27 1.18-3.07-.12-.29-.51-1.46.11-3.03 0 0 .96-.31 3.14 1.17a10.9 10.9 0 0 1 5.72 0c2.18-1.48 3.14-1.17 3.14-1.17.62 1.57.23 2.74.11 3.03.73.8 1.18 1.82 1.18 3.07 0 4.39-2.68 5.36-5.23 5.65.41.35.77 1.04.77 2.1v3.12c0 .3.21.66.79.55A11.3 11.3 0 0 0 12 .7Z" /></svg></a></nav></header>;
+  return <header className="topbar"><button className="logo" onClick={() => onView('player')}><span className="wave-mark"><i /><i /><i /><i /></span><strong>MilitAIre Nostalgia</strong><em>Beta</em></button><nav><button className={view === 'library' ? 'active' : ''} onClick={() => onView('library')}>Library</button><button className={view === 'settings' ? 'active' : ''} onClick={() => onView('settings')}>Settings</button><a className="avatar github-link" href={repoUrl} target="_blank" rel="noreferrer" aria-label="Open GitHub repository"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .7a11.3 11.3 0 0 0-3.6 22c.57.1.78-.25.78-.55v-2.1c-3.18.7-3.85-1.36-3.85-1.36-.52-1.32-1.27-1.67-1.27-1.67-1.04-.72.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.02 1.75 2.68 1.25 3.33.95.1-.74.4-1.25.72-1.54-2.54-.29-5.22-1.27-5.22-5.65 0-1.25.45-2.27 1.18-3.07-.12-.29-.51-1.46.11-3.03 0 0 .96-.31 3.14 1.17a10.9 10.9 0 0 1 5.72 0c2.18-1.48 3.14-1.17 3.14-1.17.62 1.57.23 2.74.11 3.03.73.8 1.82 1.18 3.07 1.18 3.07 0 4.39-2.68 5.36-5.23 5.65.41.35.77 1.04.77 2.1v3.12c0 .3.21.66.79.55A11.3 11.3 0 0 0 12 .7Z" /></svg></a></nav></header>;
 }
 
 function MediaLightbox({ item, onClose }: { item: MomentMedia; onClose: () => void }) {
