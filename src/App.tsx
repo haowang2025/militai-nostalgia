@@ -214,7 +214,6 @@ function App() {
         <>
           <HeroBoard
             analyser={analyser}
-            track={track}
             segment={currentSegment}
             moments={moments}
             activeMoments={activeMoments}
@@ -261,7 +260,6 @@ function TopBar({ view, onView, onExport }: { view: View; onView: (view: View) =
 
 function HeroBoard({
   analyser,
-  track,
   segment,
   moments,
   activeMoments,
@@ -271,7 +269,6 @@ function HeroBoard({
   selectedMoment,
 }: {
   analyser: AnalyserNode | null;
-  track: Track;
   segment?: FridaySegment;
   moments: Moment[];
   activeMoments: Moment[];
@@ -282,29 +279,17 @@ function HeroBoard({
 }) {
   const confidence = segment?.confidence.score ?? 0.95;
   return (
-    <section className="hero-board card-shell">
+    <section className="hero-board card-shell clean-board">
       <Spectrogram analyser={analyser} isPlaying={isPlaying} />
-      <div className="track-panel">
-        <div className="cover-card"><span>{track.cover}</span></div>
-        <div>
-          <span className="pill">Friday Sample</span>
-          <h1>{track.title}</h1>
-          <p>{track.artist}</p>
-          <div className="meta-row"><span>样例音频</span><span>{formatTime(duration)}</span></div>
-          <blockquote>当前 demo 直接使用 nilimaoma.mp3 播放，并用 nilimaoma.json 驱动公共情绪段落。</blockquote>
-          <strong className="clock">{formatTime(currentTime)} <small>/ {formatTime(duration)}</small></strong>
-        </div>
-      </div>
-      <div className="frequency-labels" aria-hidden="true"><span>8kHz</span><span>4kHz</span><span>2kHz</span><span>1kHz</span><span>512Hz</span><span>256Hz</span></div>
-      <article className="segment-floating">
-        <small>当前公共段落 {segment ? `${formatTime(segment.start)} - ${formatTime(segment.end)}` : '加载中'}</small>
+      <article className="segment-floating clean-segment">
+        <small>{segment ? `${formatTime(segment.start)} - ${formatTime(segment.end)}` : '加载中'}</small>
         <h2>{segment?.function.join(' · ') ?? '等待 Friday JSON'}</h2>
-        <p>{segment?.content ?? '正在读取 nilimaoma.json 的公共情绪段落。'}</p>
+        <p>{segment?.content ?? '正在读取公共情绪段落。'}</p>
         <div className="tag-row">{(segment?.evidence.danmaku_examples ?? ['读取中']).map((item) => <span key={item}>{item}</span>)}</div>
         <div className="confidence"><span>置信度</span><b>{confidence.toFixed(2)}</b><i style={{ width: `${confidence * 100}%` }} /></div>
       </article>
-      <div className="timeline-spike" style={{ left: `${Math.min(88, Math.max(48, (currentTime / Math.max(duration, 1)) * 100))}%` }} />
-      <article className="moment-card">
+      <div className="timeline-spike" style={{ left: `${Math.min(88, Math.max(12, (currentTime / Math.max(duration, 1)) * 100))}%` }} />
+      <article className="moment-card clean-moment">
         <h3>{selectedMoment ? `${formatTime(selectedMoment.timestamp_s)} 的 Moment` : '还没有 Moment'}</h3>
         <p>{activeMoments.length ? '正在提前召回这个时间段的私人记忆' : `${moments.length} 个私人锚点已保存在本地`}</p>
         <div className="tag-row quiet-tags">{(selectedMoment?.tags.length ? selectedMoment.tags : ['支持阿坤', '升华', '上头']).map((tag) => <span key={tag}>{tag}</span>)}</div>
