@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
-import { companionSeed, tracks } from './demoData';
+import { tracks } from './demoData';
 import { useNostalgiaStore } from './store';
 import type { FridayPayload, FridaySegment, Moment, MomentMedia, MomentPayload, Track } from './types';
 
@@ -113,7 +113,7 @@ function createFridayExport(track: Track, moments: Moment[], segments: FridaySeg
         peak_t: moment.timestamp_s,
         source: 'user',
         content: moment.note,
-        confidence: { score: 1, scope: 'user_record', meaning: '用户主动保存并可补写的私人 Moment' },
+        confidence: { score: 1, scope: 'user_record', meaning: '用户主动保存并补写的私人 Moment' },
         function: ['私人 Moment', ...(inherited?.function ?? [])],
         evidence: {
           user_note: moment.note,
@@ -130,7 +130,7 @@ function createFridayExport(track: Track, moments: Moment[], segments: FridaySeg
           moment_ids: [moment.id],
           seed_from: { source: 'friday', public_segment_id: moment.public_segment_id },
           track: { id: track.id, title: track.title, artist: track.artist },
-          ai_usage: { allow_recall: moment.allow_recall, recall_style: moment.recall_style, visibility: 'private', do_not_use_for_ads: true },
+          privacy: { visibility: 'local_first', exported_by_user: true },
         },
       };
     }),
@@ -158,7 +158,6 @@ function App() {
   const [selectedMomentId, setSelectedMomentId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
   const [deleteWarningOpen, setDeleteWarningOpen] = useState(false);
-  const [creativeNoticeOpen, setCreativeNoticeOpen] = useState(false);
   const [previewMedia, setPreviewMedia] = useState<MomentMedia | null>(null);
   const [rememberRange, setRememberRange] = useState<RememberRange | null>(null);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
@@ -172,7 +171,6 @@ function App() {
   const addMoment = useNostalgiaStore((state) => state.addMoment);
   const updateMoment = useNostalgiaStore((state) => state.updateMoment);
   const deleteMoment = useNostalgiaStore((state) => state.deleteMoment);
-  const addResponse = useNostalgiaStore((state) => state.addResponse);
 
   const audioTime = () => audioRef.current?.currentTime ?? currentTime;
   const clampTime = (value: number) => Math.min(duration || track.duration_s, Math.max(0, value));
@@ -280,7 +278,6 @@ function App() {
     const moment = createMomentFromSeed(seed, '', [], buildMomentPayload(seed, [], [], []));
     setToast('已创建空白 Moment，写下这一刻你想起了什么');
     openMomentEditor(moment, seed);
-    addResponse({ title: '米粒太的陪伴', body: companionSeed[Math.floor(Math.random() * companionSeed.length)], tone: 'gentle' });
   };
 
   const recordMomentRange = (start: number, end: number) => {
@@ -291,7 +288,6 @@ function App() {
     const moment = createMomentFromSeed(seed, '', [], buildMomentPayload(seed, [], [], []), { start: rangeStart, end: rangeEnd });
     setToast(`已创建空白区间 Moment：${formatTime(moment.start_s)} - ${formatTime(moment.end_s)}`);
     openMomentEditor(moment, seed);
-    addResponse({ title: '米粒太的陪伴', body: companionSeed[Math.floor(Math.random() * companionSeed.length)], tone: 'gentle' });
   };
 
   const pressEndTime = (press: PressState) => {
@@ -429,11 +425,6 @@ function App() {
     setToast('已删除 Moment');
   };
 
-  const enterCreativeMode = () => {
-    setCreativeNoticeOpen(false);
-    setToast('已进入二创准备模式');
-  };
-
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
@@ -466,7 +457,7 @@ function App() {
     setCurrentTime(time);
   };
 
-  const exportCurrent = () => downloadJson(`${track.id}-friday-memory.json`, createFridayExport(track, moments, segments));
+  const exportCurrent = () => downloadJson(`${track.id}-memory.json`, createFridayExport(track, moments, segments));
 
   const chooseTrack = (nextTrack: Track) => {
     setTrack(nextTrack);
@@ -491,11 +482,10 @@ function App() {
       {view === 'player' ? (
         <>
           <HeroBoard analyser={analyser} seedSegment={currentSegment} activeMoments={activeMoments} selectedMoment={selectedMoment} segmentForMoment={segmentForMoment} currentTime={currentTime} duration={duration} isPlaying={isPlaying} editDraft={editDraft} deleteWarningOpen={deleteWarningOpen} onStartEdit={startEdit} onEditContent={(content) => setEditDraft((draft) => draft ? { ...draft, content } : draft)} onToggleTag={toggleDraftTag} onTagInput={(tagInput) => setEditDraft((draft) => draft ? { ...draft, tagInput } : draft)} onAddCustomTag={addCustomTag} onAddMedia={addMediaFiles} onRemoveMedia={removeMedia} onRequestDelete={requestDeleteMoment} onConfirmDelete={confirmDeleteMoment} onCancelDelete={() => setDeleteWarningOpen(false)} onSaveEdit={saveEdit} onCancelEdit={() => { setDeleteWarningOpen(false); setEditDraft(null); }} onPreviewMedia={setPreviewMedia} />
-          <Transport currentTime={currentTime} duration={duration} moments={moments} rememberRange={rememberRange} isPlaying={isPlaying} toast={toast} onToggle={togglePlay} onSeek={seek} onRememberStart={beginRememberPress} onRememberEnd={finishRememberPress} onRememberCancel={cancelRememberPress} onExport={exportCurrent} onCreative={() => setCreativeNoticeOpen(true)} />
-          <ResponseArea />
+          <Transport currentTime={currentTime} duration={duration} moments={moments} rememberRange={rememberRange} isPlaying={isPlaying} onToggle={togglePlay} onSeek={seek} onRememberStart={beginRememberPress} onRememberEnd={finishRememberPress} onRememberCancel={cancelRememberPress} onExport={exportCurrent} />
+          <LocalMemoryPanel moments={moments} />
         </>
       ) : null}
-      {creativeNoticeOpen ? <CreativeNoticeDialog onCancel={() => setCreativeNoticeOpen(false)} onContinue={enterCreativeMode} /> : null}
       {previewMedia ? <MediaLightbox item={previewMedia} onClose={() => setPreviewMedia(null)} /> : null}
     </div>
   );
@@ -503,10 +493,6 @@ function App() {
 
 function TopBar({ view, onView }: { view: View; onView: (view: View) => void }) {
   return <header className="topbar"><button className="logo" onClick={() => onView('player')}><span className="wave-mark"><i /><i /><i /><i /></span><strong>MilitAIre Nostalgia</strong><em>Beta</em></button><nav><button className={view === 'library' ? 'active' : ''} onClick={() => onView('library')}>Library</button><button className={view === 'settings' ? 'active' : ''} onClick={() => onView('settings')}>Settings</button><a className="avatar github-link" href={repoUrl} target="_blank" rel="noreferrer" aria-label="Open GitHub repository"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .7a11.3 11.3 0 0 0-3.6 22c.57.1.78-.25.78-.55v-2.1c-3.18.7-3.85-1.36-3.85-1.36-.52-1.32-1.27-1.67-1.27-1.67-1.04-.72.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.02 1.75 2.68 1.25 3.33.95.1-.74.4-1.25.72-1.54-2.54-.29-5.22-1.27-5.22-5.65 0-1.25.45-2.27 1.18-3.07-.12-.29-.51-1.46.11-3.03 0 0 .96-.31 3.14 1.17a10.9 10.9 0 0 1 5.72 0c2.18-1.48 3.14-1.17 3.14-1.17.62 1.57.23 2.74.11 3.03.73.8 1.18 1.82 1.18 3.07 0 4.39-2.68 5.36-5.23 5.65.41.35.77 1.04.77 2.1v3.12c0 .3.21.66.79.55A11.3 11.3 0 0 0 12 .7Z" /></svg></a></nav></header>;
-}
-
-function CreativeNoticeDialog({ onCancel, onContinue }: { onCancel: () => void; onContinue: () => void }) {
-  return <div className="modal-backdrop" role="presentation" onClick={onCancel}><section className="creative-modal card-shell" role="dialog" aria-modal="true" aria-labelledby="creative-title" onClick={(event) => event.stopPropagation()}><span className="modal-eyebrow">进入二创前提醒</span><h2 id="creative-title">即将调用米粒太声乐助手</h2><p>你之前记录和编辑的 Moment 内容会继续保存在本地浏览器中。</p><p>进入二创后，为了生成或处理二创内容，你上传的音频、录音或相关 media 将被上传给米粒太声乐助手处理。</p><div className="modal-actions"><button onClick={onCancel}>先不进入</button><button className="remember-action" onClick={onContinue}>我知道了，进入二创</button></div></section></div>;
 }
 
 function MediaLightbox({ item, onClose }: { item: MomentMedia; onClose: () => void }) {
@@ -602,15 +588,14 @@ function Spectrogram({ analyser, isPlaying }: { analyser: AnalyserNode | null; i
   return <canvas className="spectrogram" ref={canvasRef} aria-label="真实音频频谱图" />;
 }
 
-function Transport({ currentTime, duration, moments, rememberRange, isPlaying, toast, onToggle, onSeek, onRememberStart, onRememberEnd, onRememberCancel, onExport, onCreative }: { currentTime: number; duration: number; moments: Moment[]; rememberRange: RememberRange | null; isPlaying: boolean; toast: string; onToggle: () => void; onSeek: (time: number) => void; onRememberStart: () => void; onRememberEnd: () => void; onRememberCancel: () => void; onExport: () => void; onCreative: () => void }) {
+function Transport({ currentTime, duration, moments, rememberRange, isPlaying, onToggle, onSeek, onRememberStart, onRememberEnd, onRememberCancel, onExport }: { currentTime: number; duration: number; moments: Moment[]; rememberRange: RememberRange | null; isPlaying: boolean; onToggle: () => void; onSeek: (time: number) => void; onRememberStart: () => void; onRememberEnd: () => void; onRememberCancel: () => void; onExport: () => void }) {
   const rangeStart = rememberRange ? Math.min(rememberRange.start, rememberRange.end) : 0;
   const rangeEnd = rememberRange ? Math.max(rememberRange.start, rememberRange.end) : 0;
-  return <section className="transport-card card-shell"><div className="shortcut"><kbd>空格</kbd><span>{toast}</span></div><div className="progress-area"><span>{formatTime(currentTime)}</span><div className="progress-line"><input min={0} max={duration || 1} step={0.1} value={currentTime} type="range" onChange={(event) => onSeek(Number(event.target.value))} /><div className="progress-fill" style={{ width: `${(currentTime / Math.max(duration, 1)) * 100}%` }} />{rememberRange ? <div className="hold-range" style={{ left: `${(rangeStart / Math.max(duration, 1)) * 100}%`, width: `${Math.max(0.6, ((rangeEnd - rangeStart) / Math.max(duration, 1)) * 100)}%` }} /> : null}{moments.map((moment, index) => <button key={moment.id} className="moment-dot" style={{ left: `${(moment.timestamp_s / Math.max(duration, 1)) * 100}%` }} onClick={() => onSeek(moment.timestamp_s)}>{index + 1}</button>)}</div><span>{formatTime(duration)}</span></div><div className="controls"><button title="previous">◀</button><button className="play" onClick={onToggle}>{isPlaying ? 'Ⅱ' : '▶'}</button><button title="next">▶</button></div><div className="transport-actions"><button className={`remember-action hold-remember ${rememberRange?.active ? 'is-holding' : ''}`} onPointerDown={(event) => { event.preventDefault(); onRememberStart(); }} onPointerUp={(event) => { event.preventDefault(); onRememberEnd(); }} onPointerCancel={onRememberCancel} onPointerLeave={() => { if (!rememberRange?.active) onRememberCancel(); }}>记住此刻</button><button className="export-mini" onClick={onExport}>导出 JSON</button><button className="export-mini creative-mini" onClick={onCreative}>我想二创</button></div></section>;
+  return <section className="transport-card card-shell"><div className="progress-area"><span>{formatTime(currentTime)}</span><div className="progress-line"><input min={0} max={duration || 1} step={0.1} value={currentTime} type="range" onChange={(event) => onSeek(Number(event.target.value))} /><div className="progress-fill" style={{ width: `${(currentTime / Math.max(duration, 1)) * 100}%` }} />{rememberRange ? <div className="hold-range" style={{ left: `${(rangeStart / Math.max(duration, 1)) * 100}%`, width: `${Math.max(0.6, ((rangeEnd - rangeStart) / Math.max(duration, 1)) * 100)}%` }} /> : null}{moments.map((moment, index) => <button key={moment.id} className="moment-dot" style={{ left: `${(moment.timestamp_s / Math.max(duration, 1)) * 100}%` }} onClick={() => onSeek(moment.timestamp_s)}>{index + 1}</button>)}</div><span>{formatTime(duration)}</span></div><div className="controls"><button title="previous">◀</button><button className="play" onClick={onToggle}>{isPlaying ? 'Ⅱ' : '▶'}</button><button title="next">▶</button></div><div className="transport-actions"><button className={`remember-action hold-remember ${rememberRange?.active ? 'is-holding' : ''}`} onPointerDown={(event) => { event.preventDefault(); onRememberStart(); }} onPointerUp={(event) => { event.preventDefault(); onRememberEnd(); }} onPointerCancel={onRememberCancel} onPointerLeave={() => { if (!rememberRange?.active) onRememberCancel(); }}>记住此刻</button><button className="export-mini" onClick={onExport}>导出 JSON</button></div></section>;
 }
 
-function ResponseArea() {
-  const responses = useNostalgiaStore((state) => state.responses);
-  return <section className="response-grid feedback-only"><article className="letter-card card-shell wide-letter"><div className="panel-title"><h2>米粒太反馈</h2><span>MCP 降级演示</span></div><p>{responses[0]?.body ?? '先把记录链路跑通：播放、保存、补写、导出。MCP 和 LLM 后续再接真实服务。'}</p><p>这里不替用户定义情绪，只把 Friday seed 和私人 Moment 放在一起，作为回忆召回的入口。Moment 的编辑已经收进公告栏卡片本身，点击卡片即可原地修改并保存。</p><em>— MilitAIre</em></article></section>;
+function LocalMemoryPanel({ moments }: { moments: Moment[] }) {
+  return <section className="response-grid feedback-only"><article className="letter-card card-shell wide-letter"><div className="panel-title"><h2>本地记忆库</h2><span>{moments.length} 个 Moment</span></div><p>我不解释你的记忆，只帮你把它安全地留下来。</p><p>所有 Moment、标签和 media 默认只保存在当前浏览器本地。你可以点击公告栏卡片编辑或删除，也可以随时导出 JSON 记忆包。</p></article></section>;
 }
 
 function Library({ activeTrack, onPick }: { activeTrack: Track; onPick: (track: Track) => void }) {
@@ -618,7 +603,7 @@ function Library({ activeTrack, onPick }: { activeTrack: Track; onPick: (track: 
 }
 
 function Settings() {
-  return <section className="settings-page card-shell"><h1>Settings</h1><p>Cloudflare 静态 demo 不保存 API Key。服务端版本再接 `data/config.json`、MCP endpoint 和 LLM provider。</p><label>LLM Provider<input placeholder="openai / compatible" /></label><label>Model<input placeholder="gpt-4o / local model" /></label><label>MCP Endpoint<input placeholder="https://mcp.militai.me" /></label></section>;
+  return <section className="settings-page card-shell"><h1>Settings</h1><p>这版只做本地音乐记忆沉淀。Moment、标签和 media 默认写入当前浏览器的 localStorage，不会自动上传。</p><label>Storage<input value="Browser localStorage" readOnly /></label><label>Export<input value="Friday-compatible JSON memory package" readOnly /></label><label>Privacy<input value="Local first, user controlled" readOnly /></label></section>;
 }
 
 export default App;
