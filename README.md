@@ -24,7 +24,7 @@ Core promise:
 
 ## What this demo does not do
 
-This public demo does not include companion interpretation, chat, vocal coaching, MCP calls, or automatic upload. It is a local-first memory deposit layer.
+This public demo does not interpret, judge, coach, chat, or automatically upload user memory. It is a local-first memory deposit layer.
 
 ## Cloudflare Pages
 
