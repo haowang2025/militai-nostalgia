@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { CompanionResponse, Moment, RecallStyle } from './types';
+import type { CompanionResponse, Moment, MomentPayload, RecallStyle } from './types';
 
 const MOMENT_KEY = 'militai-nostalgia/moments/v1';
 const RESPONSE_KEY = 'militai-nostalgia/responses/v1';
@@ -24,15 +24,18 @@ type MomentInput = {
   note?: string;
   mood?: string[];
   tags?: string[];
+  payload?: MomentPayload;
   start_s?: number;
   end_s?: number;
 };
+
+type MomentPatch = Partial<Pick<Moment, 'note' | 'mood' | 'tags' | 'payload' | 'allow_recall' | 'recall_style'>>;
 
 type NostalgiaStore = {
   moments: Moment[];
   responses: CompanionResponse[];
   addMoment: (input: MomentInput) => Moment;
-  updateMoment: (id: string, patch: Partial<Pick<Moment, 'note' | 'mood' | 'tags' | 'allow_recall' | 'recall_style'>>) => void;
+  updateMoment: (id: string, patch: MomentPatch) => void;
   deleteMoment: (id: string) => void;
   addResponse: (response: Omit<CompanionResponse, 'id' | 'created_at'>) => void;
   clearTrack: (trackId: string) => void;
@@ -49,6 +52,15 @@ export const useNostalgiaStore = create<NostalgiaStore>((set, get) => ({
     );
 
     if (duplicate) {
+      if (input.note || input.tags || input.payload) {
+        const patch: MomentPatch = {
+          note: input.note ?? duplicate.note,
+          tags: input.tags ?? duplicate.tags,
+          payload: input.payload ? { ...(duplicate.payload ?? {}), ...input.payload } : duplicate.payload,
+        };
+        get().updateMoment(duplicate.id, patch);
+        return { ...duplicate, ...patch, updated_at: new Date().toISOString() };
+      }
       return duplicate;
     }
 
@@ -62,6 +74,7 @@ export const useNostalgiaStore = create<NostalgiaStore>((set, get) => ({
       note: input.note ?? '',
       mood: input.mood ?? [],
       tags: input.tags ?? [],
+      payload: input.payload,
       source: 'user',
       is_private: true,
       allow_recall: true,
