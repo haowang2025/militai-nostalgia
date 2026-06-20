@@ -2,6 +2,25 @@
   display: none !important;
 }
 
+.github-link {
+  color: #171714;
+  text-decoration: none;
+}
+
+.github-link svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.transport-actions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.creative-mini {
+  white-space: nowrap;
+}
+
 .hero-board {
   padding-left: clamp(34px, 4vw, 72px);
   padding-right: clamp(34px, 4vw, 72px);
@@ -100,5 +119,11 @@
   .recall-card.editing-surface {
     width: min(720px, 100%);
     max-width: 100%;
+  }
+}
+
+@media (max-width: 720px) {
+  .transport-actions {
+    grid-template-columns: 1fr;
   }
 }
