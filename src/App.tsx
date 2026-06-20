@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { companionSeed, tracks } from './demoData';
 import { useNostalgiaStore } from './store';
 import type { FridaySegment, Moment, Track } from './types';
@@ -212,7 +212,6 @@ function App() {
       {view === 'settings' ? <Settings /> : null}
       {view === 'player' ? (
         <>
-          <FlowStrip activeStep={selectedMoment ? 3 : moments.length ? 2 : isPlaying ? 1 : 0} />
           <HeroBoard
             analyser={analyser}
             track={track}
@@ -257,20 +256,6 @@ function TopBar({ view, onView, onExport }: { view: View; onView: (view: View) =
         <span className="avatar">米</span>
       </nav>
     </header>
-  );
-}
-
-function FlowStrip({ activeStep }: { activeStep: number }) {
-  const steps = ['听歌', '记住此刻', '补写情绪', '导出 JSON'];
-  return (
-    <section className="flow-strip">
-      {steps.map((step, index) => (
-        <div className={index <= activeStep ? 'done' : ''} key={step}>
-          <b>{index + 1}</b>
-          <span>{step}</span>
-        </div>
-      ))}
-    </section>
   );
 }
 
