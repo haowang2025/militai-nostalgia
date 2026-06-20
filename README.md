@@ -2,6 +2,8 @@
 
 A music memory player for saving private emotional moments as Friday-compatible JSON, with optional MilitAIre vocal feedback.
 
+致敬米哈游的Olivia Lin
+
 ## Demo direction
 
 This repository follows `spec_v1.2_part1.md`, `spec_v1.2_part2.md`, and the uploaded `UX.png` reference:
