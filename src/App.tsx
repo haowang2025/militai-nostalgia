@@ -223,12 +223,7 @@ function App() {
   };
 
   const startEdit = (surface: MomentSurfaceData) => {
-    setEditDraft({
-      surfaceId: surface.id,
-      momentId: surface.momentId,
-      seedSegment: surface.seedSegment,
-      content: surface.content,
-    });
+    setEditDraft({ surfaceId: surface.id, momentId: surface.momentId, seedSegment: surface.seedSegment, content: surface.content });
   };
 
   const saveEdit = () => {
@@ -321,7 +316,7 @@ function App() {
             onCancelEdit={() => setEditDraft(null)}
           />
           <Transport currentTime={currentTime} duration={duration} moments={moments} isPlaying={isPlaying} toast={toast} onToggle={togglePlay} onSeek={seek} onRecord={recordMoment} onExport={exportCurrent} />
-          <ResponseArea selectedMoment={selectedMoment} onUpdateMoment={updateMoment} onExport={exportCurrent} />
+          <ResponseArea />
         </>
       ) : null}
     </div>
@@ -432,12 +427,9 @@ function Transport({ currentTime, duration, moments, isPlaying, toast, onToggle,
   return <section className="transport-card card-shell"><div className="shortcut"><kbd>空格</kbd><span>{toast}</span></div><div className="progress-area"><span>{formatTime(currentTime)}</span><div className="progress-line"><input min={0} max={duration || 1} step={0.1} value={currentTime} type="range" onChange={(event) => onSeek(Number(event.target.value))} /><div className="progress-fill" style={{ width: `${(currentTime / Math.max(duration, 1)) * 100}%` }} />{moments.map((moment, index) => <button key={moment.id} className="moment-dot" style={{ left: `${(moment.timestamp_s / Math.max(duration, 1)) * 100}%` }} onClick={() => onSeek(moment.timestamp_s)}>{index + 1}</button>)}</div><span>{formatTime(duration)}</span></div><div className="controls"><button title="previous">◀</button><button className="play" onClick={onToggle}>{isPlaying ? 'Ⅱ' : '▶'}</button><button title="next">▶</button></div><div className="transport-actions"><button className="remember-action" onClick={onRecord}>记住此刻</button><button className="export-mini" onClick={onExport}>导出 JSON</button></div></section>;
 }
 
-function ResponseArea({ selectedMoment, onUpdateMoment, onExport }: { selectedMoment?: Moment; onUpdateMoment: (id: string, patch: Partial<Pick<Moment, 'note' | 'mood' | 'tags' | 'allow_recall' | 'recall_style'>>) => void; onExport: () => void }) {
+function ResponseArea() {
   const responses = useNostalgiaStore((state) => state.responses);
-  const [note, setNote] = useState(selectedMoment?.note ?? '');
-  useEffect(() => setNote(selectedMoment?.note ?? ''), [selectedMoment?.id, selectedMoment?.note]);
-  const saveNote = () => selectedMoment && onUpdateMoment(selectedMoment.id, { note });
-  return <section className="response-grid focused"><article className="analysis-card card-shell"><div className="panel-title"><h2>当前 Moment</h2><span>本地私有</span></div>{selectedMoment ? <><p>时间点：{formatTime(selectedMoment.timestamp_s)}，范围：{formatTime(selectedMoment.start_s)} - {formatTime(selectedMoment.end_s)}</p><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="给这一刻补写一句话" /><div className="tag-row">{selectedMoment.tags.slice(0, 5).map((tag) => <span key={tag}>{tag}</span>)}</div><div className="panel-actions"><button className="remember-action" onClick={saveNote}>保存补写</button><button onClick={onExport}>导出 Friday JSON</button></div></> : <p>还没有私人锚点。播放时点击“记住此刻”或按空格。</p>}</article><article className="letter-card card-shell"><div className="panel-title"><h2>米粒太反馈</h2><span>MCP 降级演示</span></div><p>{responses[0]?.body ?? '先把记录链路跑通：播放、保存、补写、导出。MCP 和 LLM 后续再接真实服务。'}</p><p>这里不替用户定义情绪，只把 Friday seed 和私人 Moment 放在一起，作为回忆召回的入口。</p><em>— MilitAIre</em></article></section>;
+  return <section className="response-grid feedback-only"><article className="letter-card card-shell wide-letter"><div className="panel-title"><h2>米粒太反馈</h2><span>MCP 降级演示</span></div><p>{responses[0]?.body ?? '先把记录链路跑通：播放、保存、补写、导出。MCP 和 LLM 后续再接真实服务。'}</p><p>这里不替用户定义情绪，只把 Friday seed 和私人 Moment 放在一起，作为回忆召回的入口。Moment 的编辑已经收进公告栏卡片本身，点击卡片即可原地修改并保存。</p><em>— MilitAIre</em></article></section>;
 }
 
 function Library({ activeTrack, onPick }: { activeTrack: Track; onPick: (track: Track) => void }) {
