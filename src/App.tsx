@@ -12,6 +12,15 @@ type MomentSurfaceData = {
   content: string;
   tags: string[];
   media: PayloadMedia[];
+  momentId?: string;
+  seedSegment?: FridaySegment;
+};
+
+type EditDraft = {
+  surfaceId: string;
+  momentId?: string;
+  seedSegment?: FridaySegment;
+  content: string;
 };
 
 const formatTime = (value: number) => {
@@ -116,6 +125,7 @@ function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [toast, setToast] = useState('按空格，记住此刻');
   const [selectedMomentId, setSelectedMomentId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -159,6 +169,27 @@ function App() {
     return segments.find((segment, index) => segmentId(track.id, segment, index) === moment.public_segment_id);
   };
 
+  const seedIndexOf = (seed?: FridaySegment) => Math.max(0, segments.findIndex((segment) => segment === seed));
+
+  const createMomentFromSeed = (seed: FridaySegment | undefined, content: string) => {
+    const audio = audioRef.current;
+    const timestamp = audio?.currentTime ?? currentTime;
+    const anchorTime = seed?.peak_t ?? timestamp;
+    const seedIndex = seedIndexOf(seed);
+    const moment = addMoment({
+      track_id: track.id,
+      timestamp_s: anchorTime,
+      start_s: seed?.start ?? Math.max(0, timestamp - 5),
+      end_s: seed?.end ?? Math.min(duration || track.duration_s, timestamp + 5),
+      public_segment_id: seed ? segmentId(track.id, seed, seedIndex) : undefined,
+      note: content || seed?.content || '这一刻值得记住。',
+      mood: unique([...stringArray(seed?.payload?.mood), ...(seed?.function ?? [])]).slice(0, 4),
+      tags: momentTags(seed),
+    });
+    setSelectedMomentId(moment.id);
+    return moment;
+  };
+
   const ensureAudioGraph = async () => {
     const audio = audioRef.current;
     if (!audio) return null;
@@ -186,21 +217,31 @@ function App() {
     const timestamp = audio?.currentTime ?? currentTime;
     const directIndex = segments.findIndex((segment) => timestamp >= segment.start && timestamp <= segment.end);
     const seed = directIndex >= 0 ? segments[directIndex] : currentSegment;
-    const seedIndex = directIndex >= 0 ? directIndex : Math.max(0, segments.findIndex((segment) => segment === seed));
-    const anchorTime = seed?.peak_t ?? timestamp;
-    const moment = addMoment({
-      track_id: track.id,
-      timestamp_s: anchorTime,
-      start_s: seed?.start ?? Math.max(0, timestamp - 5),
-      end_s: seed?.end ?? Math.min(duration || track.duration_s, timestamp + 5),
-      public_segment_id: seed ? segmentId(track.id, seed, seedIndex) : undefined,
-      note: seed?.content ?? '这一刻值得记住。',
-      mood: unique([...stringArray(seed?.payload?.mood), ...(seed?.function ?? [])]).slice(0, 4),
-      tags: momentTags(seed),
-    });
-    setSelectedMomentId(moment.id);
-    setToast(`已记录 ${formatTime(anchorTime)}`);
+    const moment = createMomentFromSeed(seed, seed?.content ?? '这一刻值得记住。');
+    setToast(`已记录 ${formatTime(moment.timestamp_s)}`);
     addResponse({ title: '米粒太的陪伴', body: companionSeed[Math.floor(Math.random() * companionSeed.length)], tone: 'gentle' });
+  };
+
+  const startEdit = (surface: MomentSurfaceData) => {
+    setEditDraft({
+      surfaceId: surface.id,
+      momentId: surface.momentId,
+      seedSegment: surface.seedSegment,
+      content: surface.content,
+    });
+  };
+
+  const saveEdit = () => {
+    if (!editDraft) return;
+    const content = editDraft.content.trim() || '这一刻值得记住。';
+    if (editDraft.momentId) {
+      updateMoment(editDraft.momentId, { note: content });
+      setSelectedMomentId(editDraft.momentId);
+    } else {
+      const moment = createMomentFromSeed(editDraft.seedSegment ?? currentSegment, content);
+      setToast(`已保存 ${formatTime(moment.timestamp_s)}`);
+    }
+    setEditDraft(null);
   };
 
   useEffect(() => {
@@ -243,6 +284,7 @@ function App() {
     setDuration(nextTrack.duration_s);
     setIsPlaying(false);
     setSelectedMomentId(null);
+    setEditDraft(null);
     setView('player');
   };
 
@@ -272,6 +314,11 @@ function App() {
             currentTime={currentTime}
             duration={duration}
             isPlaying={isPlaying}
+            editDraft={editDraft}
+            onStartEdit={startEdit}
+            onEditContent={(content) => setEditDraft((draft) => draft ? { ...draft, content } : draft)}
+            onSaveEdit={saveEdit}
+            onCancelEdit={() => setEditDraft(null)}
           />
           <Transport currentTime={currentTime} duration={duration} moments={moments} isPlaying={isPlaying} toast={toast} onToggle={togglePlay} onSeek={seek} onRecord={recordMoment} onExport={exportCurrent} />
           <ResponseArea selectedMoment={selectedMoment} onUpdateMoment={updateMoment} onExport={exportCurrent} />
@@ -288,13 +335,15 @@ function TopBar({ view, onView, onExport }: { view: View; onView: (view: View) =
 function toSurfaceData(moment: Moment | undefined, segment: FridaySegment | undefined, fallbackId: string): MomentSurfaceData {
   return {
     id: moment?.id ?? fallbackId,
+    momentId: moment?.id,
+    seedSegment: segment,
     content: moment?.note || segment?.content || '这一刻值得记住。',
     tags: segment ? momentTags(segment, moment?.tags ?? []) : (moment?.tags ?? []).slice(0, 5),
     media: segmentMedia(segment?.payload),
   };
 }
 
-function HeroBoard({ analyser, seedSegment, activeMoments, selectedMoment, segmentForMoment, currentTime, duration, isPlaying }: { analyser: AnalyserNode | null; seedSegment?: FridaySegment; activeMoments: Moment[]; selectedMoment?: Moment; segmentForMoment: (moment?: Moment) => FridaySegment | undefined; currentTime: number; duration: number; isPlaying: boolean }) {
+function HeroBoard({ analyser, seedSegment, activeMoments, selectedMoment, segmentForMoment, currentTime, duration, isPlaying, editDraft, onStartEdit, onEditContent, onSaveEdit, onCancelEdit }: { analyser: AnalyserNode | null; seedSegment?: FridaySegment; activeMoments: Moment[]; selectedMoment?: Moment; segmentForMoment: (moment?: Moment) => FridaySegment | undefined; currentTime: number; duration: number; isPlaying: boolean; editDraft: EditDraft | null; onStartEdit: (surface: MomentSurfaceData) => void; onEditContent: (content: string) => void; onSaveEdit: () => void; onCancelEdit: () => void }) {
   const visibleMoments = activeMoments.length ? activeMoments : selectedMoment ? [selectedMoment] : [];
   const mainMoment = visibleMoments[0];
   const mainSegment = mainMoment ? segmentForMoment(mainMoment) : seedSegment;
@@ -305,20 +354,30 @@ function HeroBoard({ analyser, seedSegment, activeMoments, selectedMoment, segme
     <section className="hero-board card-shell clean-board">
       <Spectrogram analyser={analyser} isPlaying={isPlaying} />
       <div className="bulletin-layer">
-        <MomentSurface surface={mainSurface} size="primary" />
-        {sideSurfaces.map((surface, index) => <MomentSurface key={surface.id} surface={surface} size="mini" index={index} />)}
+        <MomentSurface surface={mainSurface} size="primary" editDraft={editDraft} onStartEdit={onStartEdit} onEditContent={onEditContent} onSaveEdit={onSaveEdit} onCancelEdit={onCancelEdit} />
+        {sideSurfaces.map((surface, index) => <MomentSurface key={surface.id} surface={surface} size="mini" index={index} editDraft={editDraft} onStartEdit={onStartEdit} onEditContent={onEditContent} onSaveEdit={onSaveEdit} onCancelEdit={onCancelEdit} />)}
       </div>
       <div className="timeline-spike" style={{ left: `${Math.min(88, Math.max(12, (currentTime / Math.max(duration, 1)) * 100))}%` }} />
     </section>
   );
 }
 
-function MomentSurface({ surface, size, index = 0 }: { surface: MomentSurfaceData; size: 'primary' | 'mini'; index?: number }) {
+function MomentSurface({ surface, size, index = 0, editDraft, onStartEdit, onEditContent, onSaveEdit, onCancelEdit }: { surface: MomentSurfaceData; size: 'primary' | 'mini'; index?: number; editDraft: EditDraft | null; onStartEdit: (surface: MomentSurfaceData) => void; onEditContent: (content: string) => void; onSaveEdit: () => void; onCancelEdit: () => void }) {
+  const isEditing = editDraft?.surfaceId === surface.id;
   return (
-    <article className={size === 'primary' ? 'bulletin-card' : `recall-card recall-${index % 4}`}>
-      <h2>{surface.content}</h2>
-      {surface.tags.length ? <div className="tag-row moment-hooks">{surface.tags.map((item) => <span key={item}>{item}</span>)}</div> : null}
-      {surface.media.length ? <div className="media-hooks">{surface.media.slice(0, 3).map((item, mediaIndex) => <span key={`${item.url ?? item.caption ?? item.type}-${mediaIndex}`}>{item.type ?? 'media'}{item.caption ? ` · ${item.caption}` : ''}</span>)}</div> : null}
+    <article className={`${size === 'primary' ? 'bulletin-card' : `recall-card recall-${index % 4}`} ${isEditing ? 'editing-surface' : ''}`} onClick={() => !isEditing && onStartEdit(surface)} role="button" tabIndex={0} onKeyDown={(event) => { if (!isEditing && (event.key === 'Enter' || event.key === ' ')) onStartEdit(surface); }}>
+      {isEditing ? (
+        <div className="surface-editor" onClick={(event) => event.stopPropagation()}>
+          <textarea value={editDraft.content} onChange={(event) => onEditContent(event.target.value)} autoFocus />
+          <div className="surface-actions"><button className="remember-action" onClick={onSaveEdit}>保存</button><button onClick={onCancelEdit}>取消</button></div>
+        </div>
+      ) : (
+        <>
+          <h2>{surface.content}</h2>
+          {surface.tags.length ? <div className="tag-row moment-hooks">{surface.tags.map((item) => <span key={item}>{item}</span>)}</div> : null}
+          {surface.media.length ? <div className="media-hooks">{surface.media.slice(0, 3).map((item, mediaIndex) => <span key={`${item.url ?? item.caption ?? item.type}-${mediaIndex}`}>{item.type ?? 'media'}{item.caption ? ` · ${item.caption}` : ''}</span>)}</div> : null}
+        </>
+      )}
     </article>
   );
 }
