@@ -1,8 +1,7 @@
 import { create } from 'zustand';
-import type { CompanionResponse, Moment, MomentPayload, RecallStyle } from './types';
+import type { Moment, MomentPayload, RecallStyle } from './types';
 
 const MOMENT_KEY = 'militai-nostalgia/moments/v1';
-const RESPONSE_KEY = 'militai-nostalgia/responses/v1';
 
 function readStored<T>(key: string, fallback: T): T {
   try {
@@ -33,17 +32,14 @@ type MomentPatch = Partial<Pick<Moment, 'note' | 'mood' | 'tags' | 'payload' | '
 
 type NostalgiaStore = {
   moments: Moment[];
-  responses: CompanionResponse[];
   addMoment: (input: MomentInput) => Moment;
   updateMoment: (id: string, patch: MomentPatch) => void;
   deleteMoment: (id: string) => void;
-  addResponse: (response: Omit<CompanionResponse, 'id' | 'created_at'>) => void;
   clearTrack: (trackId: string) => void;
 };
 
 export const useNostalgiaStore = create<NostalgiaStore>((set, get) => ({
   moments: typeof window === 'undefined' ? [] : readStored<Moment[]>(MOMENT_KEY, []),
-  responses: typeof window === 'undefined' ? [] : readStored<CompanionResponse[]>(RESPONSE_KEY, []),
 
   addMoment: (input) => {
     const now = new Date().toISOString();
@@ -104,15 +100,6 @@ export const useNostalgiaStore = create<NostalgiaStore>((set, get) => ({
     const next = get().moments.filter((moment) => moment.id !== id);
     writeStored(MOMENT_KEY, next);
     set({ moments: next });
-  },
-
-  addResponse: (response) => {
-    const next: CompanionResponse[] = [
-      { ...response, id: `resp_${Date.now().toString(36)}`, created_at: new Date().toISOString() },
-      ...get().responses,
-    ];
-    writeStored(RESPONSE_KEY, next);
-    set({ responses: next });
   },
 
   clearTrack: (trackId) => {
