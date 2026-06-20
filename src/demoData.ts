@@ -4,7 +4,7 @@ export const tracks: Track[] = [
   {
     id: 'nilimaoma',
     title: '你礼貌吗',
-    artist: 'Friday Sample / 米粒太',
+    artist: 'Friday Sample / Nostalgia',
     album: 'Nostalgia Demo',
     duration_s: 160,
     cover: '礼',
@@ -23,26 +23,20 @@ export const tracks: Track[] = [
     audio_url: '/nilimaoma.mp3',
     friday_url: '/nilimaoma.json',
     mood: ['怀旧', '回放', '独处'],
-    description: '同一段素材的夜间情绪皮肤，用于满足样例库与筛选体验。',
+    description: '同一段素材的夜间记忆版本，用于展示不同听歌状态下的私人 Moment。',
   },
   {
-    id: 'nilimaoma-practice',
-    title: '你礼貌吗 · 练习片段',
-    artist: 'MilitAIre Practice',
+    id: 'nilimaoma-archive',
+    title: '你礼貌吗 · 记忆存档',
+    artist: 'MilitAIre Nostalgia',
     album: 'Demo Variant',
     duration_s: 160,
-    cover: '唱',
+    cover: '存',
     audio_url: '/nilimaoma.mp3',
     friday_url: '/nilimaoma.json',
-    mood: ['练习', '声乐反馈', '米粒太'],
-    description: '突出“让我唱一下”和 MCP 降级反馈的练习场景。',
+    mood: ['存档', '锚点', '私人记忆'],
+    description: '同一段素材的记忆沉淀版本，用于展示本地保存、召回和导出。',
   },
 ];
 
-export const moodOptions = ['怀念', '治愈', '玩梗', '上头', '释放', '独处', '练习', '想起某人'];
-
-export const companionSeed = [
-  '米粒太暂时不替你定义这段情绪，只把这一刻稳稳收好。',
-  '快到你上次保存的那一段了。我不多说，陪你把这几秒听完。',
-  '如果想唱一下，也可以录一小段。MCP 没接上时，demo 会先保存练习记录。',
-];
+export const moodOptions = ['怀念', '治愈', '玩梗', '上头', '释放', '独处', '存档', '想起某人'];
