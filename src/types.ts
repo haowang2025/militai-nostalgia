@@ -77,11 +77,3 @@ export type Moment = {
   created_at: string;
   updated_at: string;
 };
-
-export type CompanionResponse = {
-  id: string;
-  title: string;
-  body: string;
-  tone: 'quiet' | 'gentle' | 'encouraging';
-  created_at: string;
-};
