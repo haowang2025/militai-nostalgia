@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { companionSeed, tracks } from './demoData';
 import { useNostalgiaStore } from './store';
 import type { FridayPayload, FridaySegment, Moment, MomentMedia, MomentPayload, Track } from './types';
@@ -151,6 +151,7 @@ function App() {
   const [toast, setToast] = useState('按空格，记住此刻');
   const [selectedMomentId, setSelectedMomentId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
+  const [deleteWarningOpen, setDeleteWarningOpen] = useState(false);
   const [creativeNoticeOpen, setCreativeNoticeOpen] = useState(false);
   const [previewMedia, setPreviewMedia] = useState<MomentMedia | null>(null);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
@@ -162,6 +163,7 @@ function App() {
   const moments = allMoments.filter((moment) => moment.track_id === track.id);
   const addMoment = useNostalgiaStore((state) => state.addMoment);
   const updateMoment = useNostalgiaStore((state) => state.updateMoment);
+  const deleteMoment = useNostalgiaStore((state) => state.deleteMoment);
   const addResponse = useNostalgiaStore((state) => state.addResponse);
 
   useEffect(() => {
@@ -252,6 +254,7 @@ function App() {
   };
 
   const startEdit = (surface: MomentSurfaceData) => {
+    setDeleteWarningOpen(false);
     setEditDraft({
       surfaceId: surface.id,
       momentId: surface.momentId,
@@ -305,7 +308,25 @@ function App() {
       const moment = createMomentFromSeed(seed, content, editDraft.selectedTags, payload);
       setToast(`已保存 ${formatTime(moment.timestamp_s)}`);
     }
+    setDeleteWarningOpen(false);
     setEditDraft(null);
+  };
+
+  const requestDeleteMoment = () => {
+    if (!editDraft?.momentId) return;
+    audioRef.current?.pause();
+    setIsPlaying(false);
+    setDeleteWarningOpen(true);
+    setToast('音乐已暂停，请确认是否删除这个 Moment');
+  };
+
+  const confirmDeleteMoment = () => {
+    if (!editDraft?.momentId) return;
+    deleteMoment(editDraft.momentId);
+    if (selectedMomentId === editDraft.momentId) setSelectedMomentId(null);
+    setDeleteWarningOpen(false);
+    setEditDraft(null);
+    setToast('已删除 Moment');
   };
 
   const enterCreativeMode = () => {
@@ -354,6 +375,7 @@ function App() {
     setIsPlaying(false);
     setSelectedMomentId(null);
     setEditDraft(null);
+    setDeleteWarningOpen(false);
     setPreviewMedia(null);
     setView('player');
   };
@@ -366,7 +388,7 @@ function App() {
       {view === 'settings' ? <Settings /> : null}
       {view === 'player' ? (
         <>
-          <HeroBoard analyser={analyser} seedSegment={currentSegment} activeMoments={activeMoments} selectedMoment={selectedMoment} segmentForMoment={segmentForMoment} currentTime={currentTime} duration={duration} isPlaying={isPlaying} editDraft={editDraft} onStartEdit={startEdit} onEditContent={(content) => setEditDraft((draft) => draft ? { ...draft, content } : draft)} onToggleTag={toggleDraftTag} onTagInput={(tagInput) => setEditDraft((draft) => draft ? { ...draft, tagInput } : draft)} onAddCustomTag={addCustomTag} onAddMedia={addMediaFiles} onRemoveMedia={removeMedia} onSaveEdit={saveEdit} onCancelEdit={() => setEditDraft(null)} onPreviewMedia={setPreviewMedia} />
+          <HeroBoard analyser={analyser} seedSegment={currentSegment} activeMoments={activeMoments} selectedMoment={selectedMoment} segmentForMoment={segmentForMoment} currentTime={currentTime} duration={duration} isPlaying={isPlaying} editDraft={editDraft} deleteWarningOpen={deleteWarningOpen} onStartEdit={startEdit} onEditContent={(content) => setEditDraft((draft) => draft ? { ...draft, content } : draft)} onToggleTag={toggleDraftTag} onTagInput={(tagInput) => setEditDraft((draft) => draft ? { ...draft, tagInput } : draft)} onAddCustomTag={addCustomTag} onAddMedia={addMediaFiles} onRemoveMedia={removeMedia} onRequestDelete={requestDeleteMoment} onConfirmDelete={confirmDeleteMoment} onCancelDelete={() => setDeleteWarningOpen(false)} onSaveEdit={saveEdit} onCancelEdit={() => { setDeleteWarningOpen(false); setEditDraft(null); }} onPreviewMedia={setPreviewMedia} />
           <Transport currentTime={currentTime} duration={duration} moments={moments} isPlaying={isPlaying} toast={toast} onToggle={togglePlay} onSeek={seek} onRecord={recordMoment} onExport={exportCurrent} />
           <ResponseArea />
         </>
@@ -408,18 +430,18 @@ function toSurfaceData(moment: Moment | undefined, segment: FridaySegment | unde
   return { id: moment?.id ?? fallbackId, momentId: moment?.id, seedSegment: segment, content: moment?.note || segment?.content || '这一刻值得记住。', tags, tagOptions, media };
 }
 
-function HeroBoard({ analyser, seedSegment, activeMoments, selectedMoment, segmentForMoment, currentTime, duration, isPlaying, editDraft, onStartEdit, onEditContent, onToggleTag, onTagInput, onAddCustomTag, onAddMedia, onRemoveMedia, onSaveEdit, onCancelEdit, onPreviewMedia }: { analyser: AnalyserNode | null; seedSegment?: FridaySegment; activeMoments: Moment[]; selectedMoment?: Moment; segmentForMoment: (moment?: Moment) => FridaySegment | undefined; currentTime: number; duration: number; isPlaying: boolean; editDraft: EditDraft | null; onStartEdit: (surface: MomentSurfaceData) => void; onEditContent: (content: string) => void; onToggleTag: (tag: string) => void; onTagInput: (tag: string) => void; onAddCustomTag: () => void; onAddMedia: (files: FileList | null) => void; onRemoveMedia: (index: number) => void; onSaveEdit: () => void; onCancelEdit: () => void; onPreviewMedia: (item: MomentMedia) => void }) {
+function HeroBoard({ analyser, seedSegment, activeMoments, selectedMoment, segmentForMoment, currentTime, duration, isPlaying, editDraft, deleteWarningOpen, onStartEdit, onEditContent, onToggleTag, onTagInput, onAddCustomTag, onAddMedia, onRemoveMedia, onRequestDelete, onConfirmDelete, onCancelDelete, onSaveEdit, onCancelEdit, onPreviewMedia }: { analyser: AnalyserNode | null; seedSegment?: FridaySegment; activeMoments: Moment[]; selectedMoment?: Moment; segmentForMoment: (moment?: Moment) => FridaySegment | undefined; currentTime: number; duration: number; isPlaying: boolean; editDraft: EditDraft | null; deleteWarningOpen: boolean; onStartEdit: (surface: MomentSurfaceData) => void; onEditContent: (content: string) => void; onToggleTag: (tag: string) => void; onTagInput: (tag: string) => void; onAddCustomTag: () => void; onAddMedia: (files: FileList | null) => void; onRemoveMedia: (index: number) => void; onRequestDelete: () => void; onConfirmDelete: () => void; onCancelDelete: () => void; onSaveEdit: () => void; onCancelEdit: () => void; onPreviewMedia: (item: MomentMedia) => void }) {
   const visibleMoments = activeMoments.length ? activeMoments : selectedMoment ? [selectedMoment] : [];
   const mainMoment = visibleMoments[0];
   const mainSegment = mainMoment ? segmentForMoment(mainMoment) : seedSegment;
   const mainSurface = toSurfaceData(mainMoment, mainSegment, 'seed');
   const sideSurfaces = visibleMoments.slice(1, 5).map((moment) => toSurfaceData(moment, segmentForMoment(moment), moment.id));
-  return <section className="hero-board card-shell clean-board"><Spectrogram analyser={analyser} isPlaying={isPlaying} /><div className="bulletin-layer"><MomentSurface surface={mainSurface} size="primary" editDraft={editDraft} onStartEdit={onStartEdit} onEditContent={onEditContent} onToggleTag={onToggleTag} onTagInput={onTagInput} onAddCustomTag={onAddCustomTag} onAddMedia={onAddMedia} onRemoveMedia={onRemoveMedia} onSaveEdit={onSaveEdit} onCancelEdit={onCancelEdit} onPreviewMedia={onPreviewMedia} />{sideSurfaces.map((surface, index) => <MomentSurface key={surface.id} surface={surface} size="mini" index={index} editDraft={editDraft} onStartEdit={onStartEdit} onEditContent={onEditContent} onToggleTag={onToggleTag} onTagInput={onTagInput} onAddCustomTag={onAddCustomTag} onAddMedia={onAddMedia} onRemoveMedia={onRemoveMedia} onSaveEdit={onSaveEdit} onCancelEdit={onCancelEdit} onPreviewMedia={onPreviewMedia} />)}</div><div className="timeline-spike" style={{ left: `${Math.min(88, Math.max(12, (currentTime / Math.max(duration, 1)) * 100))}%` }} /></section>;
+  return <section className="hero-board card-shell clean-board"><Spectrogram analyser={analyser} isPlaying={isPlaying} /><div className="bulletin-layer"><MomentSurface surface={mainSurface} size="primary" editDraft={editDraft} deleteWarningOpen={deleteWarningOpen} onStartEdit={onStartEdit} onEditContent={onEditContent} onToggleTag={onToggleTag} onTagInput={onTagInput} onAddCustomTag={onAddCustomTag} onAddMedia={onAddMedia} onRemoveMedia={onRemoveMedia} onRequestDelete={onRequestDelete} onConfirmDelete={onConfirmDelete} onCancelDelete={onCancelDelete} onSaveEdit={onSaveEdit} onCancelEdit={onCancelEdit} onPreviewMedia={onPreviewMedia} />{sideSurfaces.map((surface, index) => <MomentSurface key={surface.id} surface={surface} size="mini" index={index} editDraft={editDraft} deleteWarningOpen={deleteWarningOpen} onStartEdit={onStartEdit} onEditContent={onEditContent} onToggleTag={onToggleTag} onTagInput={onTagInput} onAddCustomTag={onAddCustomTag} onAddMedia={onAddMedia} onRemoveMedia={onRemoveMedia} onRequestDelete={onRequestDelete} onConfirmDelete={onConfirmDelete} onCancelDelete={onCancelDelete} onSaveEdit={onSaveEdit} onCancelEdit={onCancelEdit} onPreviewMedia={onPreviewMedia} />)}</div><div className="timeline-spike" style={{ left: `${Math.min(88, Math.max(12, (currentTime / Math.max(duration, 1)) * 100))}%` }} /></section>;
 }
 
 function MediaPreview({ item, onPreview }: { item: MomentMedia; onPreview: (item: MomentMedia) => void }) {
   const label = item.caption ?? item.type;
-  const openPreview = (event: React.MouseEvent) => {
+  const openPreview = (event: MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
     onPreview(item);
@@ -431,9 +453,10 @@ function MediaPreview({ item, onPreview }: { item: MomentMedia; onPreview: (item
   return <span className="media-preview file-preview">{label}</span>;
 }
 
-function MomentSurface({ surface, size, index = 0, editDraft, onStartEdit, onEditContent, onToggleTag, onTagInput, onAddCustomTag, onAddMedia, onRemoveMedia, onSaveEdit, onCancelEdit, onPreviewMedia }: { surface: MomentSurfaceData; size: 'primary' | 'mini'; index?: number; editDraft: EditDraft | null; onStartEdit: (surface: MomentSurfaceData) => void; onEditContent: (content: string) => void; onToggleTag: (tag: string) => void; onTagInput: (tag: string) => void; onAddCustomTag: () => void; onAddMedia: (files: FileList | null) => void; onRemoveMedia: (index: number) => void; onSaveEdit: () => void; onCancelEdit: () => void; onPreviewMedia: (item: MomentMedia) => void }) {
+function MomentSurface({ surface, size, index = 0, editDraft, deleteWarningOpen, onStartEdit, onEditContent, onToggleTag, onTagInput, onAddCustomTag, onAddMedia, onRemoveMedia, onRequestDelete, onConfirmDelete, onCancelDelete, onSaveEdit, onCancelEdit, onPreviewMedia }: { surface: MomentSurfaceData; size: 'primary' | 'mini'; index?: number; editDraft: EditDraft | null; deleteWarningOpen: boolean; onStartEdit: (surface: MomentSurfaceData) => void; onEditContent: (content: string) => void; onToggleTag: (tag: string) => void; onTagInput: (tag: string) => void; onAddCustomTag: () => void; onAddMedia: (files: FileList | null) => void; onRemoveMedia: (index: number) => void; onRequestDelete: () => void; onConfirmDelete: () => void; onCancelDelete: () => void; onSaveEdit: () => void; onCancelEdit: () => void; onPreviewMedia: (item: MomentMedia) => void }) {
   const isEditing = editDraft?.surfaceId === surface.id;
-  return <article className={`${size === 'primary' ? 'bulletin-card' : `recall-card recall-${index % 4}`} ${isEditing ? 'editing-surface' : ''}`} onClick={() => !isEditing && onStartEdit(surface)} role="button" tabIndex={0} onKeyDown={(event) => { if (!isEditing && (event.key === 'Enter' || event.key === ' ')) onStartEdit(surface); }}>{isEditing ? <div className="surface-editor" onClick={(event) => event.stopPropagation()}><textarea value={editDraft.content} onChange={(event) => onEditContent(event.target.value)} autoFocus /><details className="tag-picker" open><summary>相关标签</summary><div className="tag-options">{surface.tagOptions.map((tag) => <label key={tag}><input type="checkbox" checked={editDraft.selectedTags.includes(tag)} onChange={() => onToggleTag(tag)} />{tag}</label>)}</div></details><div className="custom-tag-row"><input value={editDraft.tagInput} placeholder="手动输入新标签，会放入 meme" onChange={(event) => onTagInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); onAddCustomTag(); } }} /><button type="button" onClick={onAddCustomTag}>添加</button></div><div className="media-editor"><label>上传 media<input type="file" accept="image/*,audio/*,video/*" multiple onChange={(event) => { void onAddMedia(event.target.files); event.currentTarget.value = ''; }} /></label>{editDraft.media.length ? <div className="media-list">{editDraft.media.map((item, mediaIndex) => <span key={`${item.caption ?? item.url ?? item.type}-${mediaIndex}`}>{item.type}{item.caption ? ` · ${item.caption}` : ''}<button type="button" onClick={() => onRemoveMedia(mediaIndex)}>×</button></span>)}</div> : null}</div><div className="surface-actions"><button className="remember-action" onClick={onSaveEdit}>保存</button><button onClick={onCancelEdit}>取消</button></div></div> : <><h2>{surface.content}</h2>{surface.tags.length ? <div className="tag-row moment-hooks">{surface.tags.slice(0, 5).map((item) => <span key={item}>{item}</span>)}</div> : null}{surface.media.length ? <div className="media-previews">{surface.media.slice(0, size === 'primary' ? 3 : 1).map((item, mediaIndex) => <MediaPreview key={`${item.url ?? item.caption ?? item.type}-${mediaIndex}`} item={item} onPreview={onPreviewMedia} />)}</div> : null}</>}</article>;
+  const canDelete = Boolean(editDraft?.momentId);
+  return <article className={`${size === 'primary' ? 'bulletin-card' : `recall-card recall-${index % 4}`} ${isEditing ? 'editing-surface' : ''}`} onClick={() => !isEditing && onStartEdit(surface)} role="button" tabIndex={0} onKeyDown={(event) => { if (!isEditing && (event.key === 'Enter' || event.key === ' ')) onStartEdit(surface); }}>{isEditing ? <div className="surface-editor" onClick={(event) => event.stopPropagation()}>{canDelete ? <button className="delete-moment-button" type="button" onClick={onRequestDelete}>删除</button> : null}<textarea value={editDraft.content} onChange={(event) => onEditContent(event.target.value)} autoFocus /><details className="tag-picker" open><summary>相关标签</summary><div className="tag-options">{surface.tagOptions.map((tag) => <label key={tag}><input type="checkbox" checked={editDraft.selectedTags.includes(tag)} onChange={() => onToggleTag(tag)} />{tag}</label>)}</div></details><div className="custom-tag-row"><input value={editDraft.tagInput} placeholder="手动输入新标签，会放入 meme" onChange={(event) => onTagInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); onAddCustomTag(); } }} /><button type="button" onClick={onAddCustomTag}>添加</button></div><div className="media-editor"><label>上传 media<input type="file" accept="image/*,audio/*,video/*" multiple onChange={(event) => { void onAddMedia(event.target.files); event.currentTarget.value = ''; }} /></label>{editDraft.media.length ? <div className="media-list">{editDraft.media.map((item, mediaIndex) => <span key={`${item.caption ?? item.url ?? item.type}-${mediaIndex}`}>{item.type}{item.caption ? ` · ${item.caption}` : ''}<button type="button" onClick={() => onRemoveMedia(mediaIndex)}>×</button></span>)}</div> : null}</div>{deleteWarningOpen && canDelete ? <div className="delete-warning"><strong>删除这个 Moment？</strong><span>音乐已暂停。删除后它会从本地移除，但不会影响原始 Friday JSON。</span><div><button type="button" className="danger-confirm" onClick={onConfirmDelete}>确认删除</button><button type="button" onClick={onCancelDelete}>保留</button></div></div> : null}<div className="surface-actions"><button className="remember-action" onClick={onSaveEdit}>保存</button><button onClick={onCancelEdit}>取消</button></div></div> : <><h2>{surface.content}</h2>{surface.tags.length ? <div className="tag-row moment-hooks">{surface.tags.slice(0, 5).map((item) => <span key={item}>{item}</span>)}</div> : null}{surface.media.length ? <div className="media-previews">{surface.media.slice(0, size === 'primary' ? 3 : 1).map((item, mediaIndex) => <MediaPreview key={`${item.url ?? item.caption ?? item.type}-${mediaIndex}`} item={item} onPreview={onPreviewMedia} />)}</div> : null}</>}</article>;
 }
 
 function Spectrogram({ analyser, isPlaying }: { analyser: AnalyserNode | null; isPlaying: boolean }) {
