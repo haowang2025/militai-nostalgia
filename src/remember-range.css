@@ -1,3 +1,7 @@
+.timeline-spike {
+  display: none !important;
+}
+
 .hold-range {
   position: absolute;
   z-index: 2;
