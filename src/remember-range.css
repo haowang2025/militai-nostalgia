@@ -2,6 +2,18 @@
   display: none !important;
 }
 
+.empty-moment-copy {
+  color: rgba(23, 23, 20, 0.42);
+  font-style: italic;
+}
+
+.moment-edit-hint {
+  margin: -6px 2px 0;
+  color: #77776f;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
 .github-link {
   color: #171714;
   text-decoration: none;
