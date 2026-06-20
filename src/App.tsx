@@ -29,6 +29,8 @@ type EditDraft = {
   media: MomentMedia[];
 };
 
+const repoUrl = 'https://github.com/haowang2025/militai-nostalgia';
+
 const formatTime = (value: number) => {
   const safe = Math.max(0, Number.isFinite(value) ? value : 0);
   const minutes = Math.floor(safe / 60).toString().padStart(2, '0');
@@ -460,13 +462,13 @@ function App() {
   return (
     <div className="app">
       <audio ref={audioRef} src={track.audio_url} preload="metadata" onLoadedMetadata={(event) => setDuration(event.currentTarget.duration || track.duration_s)} onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} onEnded={() => setIsPlaying(false)} />
-      <TopBar view={view} onView={setView} onExport={exportCurrent} onCreative={() => setCreativeNoticeOpen(true)} />
+      <TopBar view={view} onView={setView} />
       {view === 'library' ? <Library activeTrack={track} onPick={chooseTrack} /> : null}
       {view === 'settings' ? <Settings /> : null}
       {view === 'player' ? (
         <>
           <HeroBoard analyser={analyser} seedSegment={currentSegment} activeMoments={activeMoments} selectedMoment={selectedMoment} segmentForMoment={segmentForMoment} currentTime={currentTime} duration={duration} isPlaying={isPlaying} editDraft={editDraft} deleteWarningOpen={deleteWarningOpen} onStartEdit={startEdit} onEditContent={(content) => setEditDraft((draft) => draft ? { ...draft, content } : draft)} onToggleTag={toggleDraftTag} onTagInput={(tagInput) => setEditDraft((draft) => draft ? { ...draft, tagInput } : draft)} onAddCustomTag={addCustomTag} onAddMedia={addMediaFiles} onRemoveMedia={removeMedia} onRequestDelete={requestDeleteMoment} onConfirmDelete={confirmDeleteMoment} onCancelDelete={() => setDeleteWarningOpen(false)} onSaveEdit={saveEdit} onCancelEdit={() => { setDeleteWarningOpen(false); setEditDraft(null); }} onPreviewMedia={setPreviewMedia} />
-          <Transport currentTime={currentTime} duration={duration} moments={moments} rememberRange={rememberRange} isPlaying={isPlaying} toast={toast} onToggle={togglePlay} onSeek={seek} onRememberStart={beginRememberPress} onRememberEnd={finishRememberPress} onRememberCancel={cancelRememberPress} onExport={exportCurrent} />
+          <Transport currentTime={currentTime} duration={duration} moments={moments} rememberRange={rememberRange} isPlaying={isPlaying} toast={toast} onToggle={togglePlay} onSeek={seek} onRememberStart={beginRememberPress} onRememberEnd={finishRememberPress} onRememberCancel={cancelRememberPress} onExport={exportCurrent} onCreative={() => setCreativeNoticeOpen(true)} />
           <ResponseArea />
         </>
       ) : null}
@@ -476,8 +478,8 @@ function App() {
   );
 }
 
-function TopBar({ view, onView, onExport, onCreative }: { view: View; onView: (view: View) => void; onExport: () => void; onCreative: () => void }) {
-  return <header className="topbar"><button className="logo" onClick={() => onView('player')}><span className="wave-mark"><i /><i /><i /><i /></span><strong>MilitAIre Nostalgia</strong><em>Beta</em></button><nav><button className={view === 'library' ? 'active' : ''} onClick={() => onView('library')}>Library</button><button onClick={onExport}>Export JSON</button><button onClick={onCreative}>我想二创</button><button className={view === 'settings' ? 'active' : ''} onClick={() => onView('settings')}>Settings</button><span className="avatar">米</span></nav></header>;
+function TopBar({ view, onView }: { view: View; onView: (view: View) => void }) {
+  return <header className="topbar"><button className="logo" onClick={() => onView('player')}><span className="wave-mark"><i /><i /><i /><i /></span><strong>MilitAIre Nostalgia</strong><em>Beta</em></button><nav><button className={view === 'library' ? 'active' : ''} onClick={() => onView('library')}>Library</button><button className={view === 'settings' ? 'active' : ''} onClick={() => onView('settings')}>Settings</button><a className="avatar github-link" href={repoUrl} target="_blank" rel="noreferrer" aria-label="Open GitHub repository"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .7a11.3 11.3 0 0 0-3.6 22c.57.1.78-.25.78-.55v-2.1c-3.18.7-3.85-1.36-3.85-1.36-.52-1.32-1.27-1.67-1.27-1.67-1.04-.72.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.02 1.75 2.68 1.25 3.33.95.1-.74.4-1.25.72-1.54-2.54-.29-5.22-1.27-5.22-5.65 0-1.25.45-2.27 1.18-3.07-.12-.29-.51-1.46.11-3.03 0 0 .96-.31 3.14 1.17a10.9 10.9 0 0 1 5.72 0c2.18-1.48 3.14-1.17 3.14-1.17.62 1.57.23 2.74.11 3.03.73.8 1.18 1.82 1.18 3.07 0 4.39-2.68 5.36-5.23 5.65.41.35.77 1.04.77 2.1v3.12c0 .3.21.66.79.55A11.3 11.3 0 0 0 12 .7Z" /></svg></a></nav></header>;
 }
 
 function CreativeNoticeDialog({ onCancel, onContinue }: { onCancel: () => void; onContinue: () => void }) {
@@ -575,10 +577,10 @@ function Spectrogram({ analyser, isPlaying }: { analyser: AnalyserNode | null; i
   return <canvas className="spectrogram" ref={canvasRef} aria-label="真实音频频谱图" />;
 }
 
-function Transport({ currentTime, duration, moments, rememberRange, isPlaying, toast, onToggle, onSeek, onRememberStart, onRememberEnd, onRememberCancel, onExport }: { currentTime: number; duration: number; moments: Moment[]; rememberRange: RememberRange | null; isPlaying: boolean; toast: string; onToggle: () => void; onSeek: (time: number) => void; onRememberStart: () => void; onRememberEnd: () => void; onRememberCancel: () => void; onExport: () => void }) {
+function Transport({ currentTime, duration, moments, rememberRange, isPlaying, toast, onToggle, onSeek, onRememberStart, onRememberEnd, onRememberCancel, onExport, onCreative }: { currentTime: number; duration: number; moments: Moment[]; rememberRange: RememberRange | null; isPlaying: boolean; toast: string; onToggle: () => void; onSeek: (time: number) => void; onRememberStart: () => void; onRememberEnd: () => void; onRememberCancel: () => void; onExport: () => void; onCreative: () => void }) {
   const rangeStart = rememberRange ? Math.min(rememberRange.start, rememberRange.end) : 0;
   const rangeEnd = rememberRange ? Math.max(rememberRange.start, rememberRange.end) : 0;
-  return <section className="transport-card card-shell"><div className="shortcut"><kbd>空格</kbd><span>{toast}</span></div><div className="progress-area"><span>{formatTime(currentTime)}</span><div className="progress-line"><input min={0} max={duration || 1} step={0.1} value={currentTime} type="range" onChange={(event) => onSeek(Number(event.target.value))} /><div className="progress-fill" style={{ width: `${(currentTime / Math.max(duration, 1)) * 100}%` }} />{rememberRange ? <div className="hold-range" style={{ left: `${(rangeStart / Math.max(duration, 1)) * 100}%`, width: `${Math.max(0.6, ((rangeEnd - rangeStart) / Math.max(duration, 1)) * 100)}%` }} /> : null}{moments.map((moment, index) => <button key={moment.id} className="moment-dot" style={{ left: `${(moment.timestamp_s / Math.max(duration, 1)) * 100}%` }} onClick={() => onSeek(moment.timestamp_s)}>{index + 1}</button>)}</div><span>{formatTime(duration)}</span></div><div className="controls"><button title="previous">◀</button><button className="play" onClick={onToggle}>{isPlaying ? 'Ⅱ' : '▶'}</button><button title="next">▶</button></div><div className="transport-actions"><button className={`remember-action hold-remember ${rememberRange?.active ? 'is-holding' : ''}`} onPointerDown={(event) => { event.preventDefault(); onRememberStart(); }} onPointerUp={(event) => { event.preventDefault(); onRememberEnd(); }} onPointerCancel={onRememberCancel} onPointerLeave={() => { if (!rememberRange?.active) onRememberCancel(); }}>记住此刻</button><button className="export-mini" onClick={onExport}>导出 JSON</button></div></section>;
+  return <section className="transport-card card-shell"><div className="shortcut"><kbd>空格</kbd><span>{toast}</span></div><div className="progress-area"><span>{formatTime(currentTime)}</span><div className="progress-line"><input min={0} max={duration || 1} step={0.1} value={currentTime} type="range" onChange={(event) => onSeek(Number(event.target.value))} /><div className="progress-fill" style={{ width: `${(currentTime / Math.max(duration, 1)) * 100}%` }} />{rememberRange ? <div className="hold-range" style={{ left: `${(rangeStart / Math.max(duration, 1)) * 100}%`, width: `${Math.max(0.6, ((rangeEnd - rangeStart) / Math.max(duration, 1)) * 100)}%` }} /> : null}{moments.map((moment, index) => <button key={moment.id} className="moment-dot" style={{ left: `${(moment.timestamp_s / Math.max(duration, 1)) * 100}%` }} onClick={() => onSeek(moment.timestamp_s)}>{index + 1}</button>)}</div><span>{formatTime(duration)}</span></div><div className="controls"><button title="previous">◀</button><button className="play" onClick={onToggle}>{isPlaying ? 'Ⅱ' : '▶'}</button><button title="next">▶</button></div><div className="transport-actions"><button className={`remember-action hold-remember ${rememberRange?.active ? 'is-holding' : ''}`} onPointerDown={(event) => { event.preventDefault(); onRememberStart(); }} onPointerUp={(event) => { event.preventDefault(); onRememberEnd(); }} onPointerCancel={onRememberCancel} onPointerLeave={() => { if (!rememberRange?.active) onRememberCancel(); }}>记住此刻</button><button className="export-mini" onClick={onExport}>导出 JSON</button><button className="export-mini creative-mini" onClick={onCreative}>我想二创</button></div></section>;
 }
 
 function ResponseArea() {
