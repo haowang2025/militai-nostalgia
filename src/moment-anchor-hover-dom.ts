@@ -16,6 +16,7 @@ type StoredMoment = {
 const momentStorageKey = 'militai-nostalgia/moments/v1';
 const activeDotClass = 'is-anchor-hovered';
 const activeCardClass = 'is-anchor-linked';
+const progressHoverClass = 'has-anchor-hover';
 
 const readMoments = (): StoredMoment[] => {
   try {
@@ -35,6 +36,7 @@ const numberFromPercent = (value: string | null) => {
 const clearAnchorHover = () => {
   document.querySelectorAll(`.${activeDotClass}`).forEach((node) => node.classList.remove(activeDotClass));
   document.querySelectorAll(`.${activeCardClass}`).forEach((node) => node.classList.remove(activeCardClass));
+  document.querySelectorAll(`.${progressHoverClass}`).forEach((node) => node.classList.remove(progressHoverClass));
 };
 
 const currentDuration = () => {
@@ -87,14 +89,21 @@ const highlightLinkedCard = (hoveredMoment: StoredMoment | undefined, trackMomen
 
 const handleAnchorEnter = (dot: HTMLButtonElement) => {
   clearAnchorHover();
+  const line = dot.closest<HTMLElement>('.progress-line');
   const dots = Array.from(document.querySelectorAll<HTMLButtonElement>('.progress-line .moment-dot'));
   const index = dots.indexOf(dot);
   const trackMoments = groupedCurrentTrackMoments(dots);
   const hoveredMoment = trackMoments[index];
 
+  line?.classList.add(progressHoverClass);
   dot.classList.add(activeDotClass);
   if (!dot.title) dot.title = `Moment ${index + 1}`;
   highlightLinkedCard(hoveredMoment, trackMoments);
+};
+
+const relatedTargetInsideProgressLine = (event: PointerEvent) => {
+  const related = event.relatedTarget;
+  return related instanceof HTMLElement && Boolean(related.closest('.progress-line'));
 };
 
 const mountAnchorHover = () => {
@@ -109,7 +118,8 @@ const mountAnchorHover = () => {
 
   document.addEventListener('pointerout', (event) => {
     if (!(event.target instanceof HTMLElement)) return;
-    if (event.target.closest('.moment-dot')) clearAnchorHover();
+    const line = event.target.closest('.progress-line');
+    if (line && !relatedTargetInsideProgressLine(event)) clearAnchorHover();
   }, true);
 
   document.addEventListener('focusin', (event) => {
@@ -119,9 +129,10 @@ const mountAnchorHover = () => {
   }, true);
 
   document.addEventListener('focusout', (event) => {
-    if (event.target instanceof HTMLElement && event.target.closest('.moment-dot')) clearAnchorHover();
+    if (!(event.target instanceof HTMLElement)) return;
+    if (event.target.closest('.moment-dot')) clearAnchorHover();
   }, true);
-}
+};
 
 if (typeof window !== 'undefined') {
   if (document.readyState === 'loading') {
