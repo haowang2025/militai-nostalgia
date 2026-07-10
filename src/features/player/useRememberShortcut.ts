@@ -7,24 +7,24 @@ type RememberShortcutOptions = {
   onCancel: () => void;
 };
 
-const editableSelector = 'input, textarea, select, [contenteditable="true"]';
+const interactiveSelector = 'input, textarea, select, button, a[href], [role="button"], [contenteditable="true"]';
 
-const isEditableTarget = (target: EventTarget | null) =>
-  target instanceof HTMLElement && Boolean(target.closest(editableSelector));
+const isInteractiveTarget = (target: EventTarget | null) =>
+  target instanceof HTMLElement && Boolean(target.closest(interactiveSelector));
 
 export const useRememberShortcut = ({ disabled, onStart, onEnd, onCancel }: RememberShortcutOptions) => {
   const activeRef = useRef(false);
 
   useEffect(() => {
     const keyDown = (event: KeyboardEvent) => {
-      if (event.code !== 'Space' || event.repeat || disabled || isEditableTarget(event.target)) return;
+      if (event.code !== 'Space' || event.repeat || disabled || isInteractiveTarget(event.target)) return;
       event.preventDefault();
       if (activeRef.current) return;
       activeRef.current = true;
       onStart();
     };
     const keyUp = (event: KeyboardEvent) => {
-      if (event.code !== 'Space' || isEditableTarget(event.target)) return;
+      if (event.code !== 'Space' || isInteractiveTarget(event.target)) return;
       if (!activeRef.current) return;
       event.preventDefault();
       activeRef.current = false;
