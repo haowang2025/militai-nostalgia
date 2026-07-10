@@ -5,10 +5,12 @@ export type FridayPayload = Record<string, unknown>;
 export type MomentMedia = {
   type: 'image' | 'audio' | 'video' | 'text' | 'link' | 'media';
   url?: string;
+  storage_key?: string;
   caption?: string;
   role?: 'memory_hook' | 'evidence' | 'voice_note' | 'reference' | string;
   source?: 'user_upload' | 'friday_seed' | 'generated' | string;
   mime_type?: string;
+  size_bytes?: number;
   start_s?: number;
   end_s?: number;
 };
