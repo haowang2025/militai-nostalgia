@@ -1,34 +1,49 @@
 # MilitAIre Nostalgia
 
-A private music memory layer for saving personal Moments while listening.
+A local-first music memory layer for saving private Moments while listening.
 
-致敬米哈游的 Olivia Lin：不是替代任何声音，而是给被声音唤起的私人记忆，一个安全沉淀的位置。
+> 我不解释你的记忆。  
+> 我只帮你把它留下来。
 
-## Demo direction
+## Current product scope
 
-This repository follows `spec_v1.2_part1.md`, `spec_v1.2_part2.md`, and the uploaded `UX.png` reference, but the current demo intentionally narrows the product to the pure memory layer:
+- Play a local demo track with Friday segment metadata.
+- Press or hold **记住此刻** to create a point or interval Moment.
+- Use the `Space` key for the same short-press/long-press interaction.
+- Edit text, tags, and local media directly on a Moment card.
+- Recall multiple Moments around their playback ranges.
+- Export a Friday-compatible JSON metadata package.
 
-- Listen to music and let a moment surface naturally.
-- Click or long-press **记住此刻** to create a blank private Moment.
-- Edit the Moment directly on the bulletin card with content, tags, and local media hooks.
-- Recall multiple saved Moments around their playback time.
-- Store everything locally in the browser by default.
-- Export a Friday-compatible JSON memory package when the user chooses.
+The app does not interpret, judge, coach, chat, or automatically upload private memories.
 
-Core promise:
+## Storage and privacy
 
-```txt
-我不解释你的记忆。
-我只帮你把它安全地留下来。
+- Moment text, tags, timing, and media metadata are stored in versioned `localStorage` records.
+- Uploaded image, audio, and video blobs are stored in IndexedDB instead of being embedded as Data URLs in `localStorage`.
+- Existing `militai-nostalgia/moments/v1` records are migrated to the v2 envelope on first load.
+- Local-first does **not** mean encrypted. Clearing site data deletes local records, so important memories should be exported regularly.
+- The current JSON export contains media metadata, not the binary IndexedDB files.
+
+## Local development
+
+Requires Node.js 20 or later.
+
+```bash
+npm install
+npm run dev
 ```
 
-## What this demo does not do
+Quality commands:
 
-This public demo does not interpret, judge, coach, chat, or automatically upload user memory. It is a local-first memory deposit layer.
+```bash
+npm run typecheck
+npm run lint
+npm test
+npm run build
+npm run check
+```
 
 ## Cloudflare Pages
-
-Use these settings:
 
 ```txt
 Framework preset: Vite
@@ -37,61 +52,27 @@ Build output directory: dist
 Node version: 20
 ```
 
-The build copies these root assets into `dist/` after Vite finishes:
+`public/_redirects` keeps `/nostalgia`, `/nostalgia/library`, and `/nostalgia/settings` compatible with client-side navigation.
 
-- `nilimaoma.mp3`
-- `nilimaoma.json`
-- `UX.png`
-
-`public/_redirects` is included so `/nostalgia`, `/nostalgia/player/...`, `/nostalgia/library`, and `/nostalgia/settings` all resolve to the SPA entry.
-
-## Local development
-
-```bash
-npm install
-npm run dev
-```
-
-Then open the Vite URL and use:
-
-- `Space` or **记住此刻** to create a blank Moment.
-- Long-press **记住此刻** to save an interval Moment.
-- Click a Moment card to edit content, tags, and media hooks.
-- Use **导出 JSON** to download the current memory package.
-- Use `Library` to switch between demo sample entries.
-- Use `Settings` to confirm the local-first storage model.
-
-## Data model in this demo
-
-For Cloudflare static deployability, Moments are stored in browser `localStorage`. The exported JSON follows a Friday-compatible shape and keeps the user's private Moment as the primary content. A future server-backed version can move the same structures to:
+## Architecture
 
 ```txt
-data/tracks.json
-data/friday/{track_id}.json
-data/moments/{track_id}.json
-data/config.json
+src/
+  features/
+    moments/       IndexedDB media persistence and JSON export
+    player/        Web Audio graph and keyboard capture hook
+    routing/       History API view routing
+  validation.ts    Runtime parsing and legacy storage normalization
+  store.ts         Versioned Moment state and storage error reporting
+  App.tsx          Product composition and React-controlled interactions
 ```
 
-## Current scope
+All keyboard, pointer, progress, anchor, and media-lightbox behavior is implemented through React state and handlers. The previous document-wide DOM adapter scripts have been removed.
 
-Implemented for v0.1 demo:
+## Media limits
 
-- Vite + React + TypeScript + Zustand
-- UX-style top navigation
-- Main player board with real Web Audio spectrogram canvas
-- Friday seed-powered candidate bulletin content
-- Blank user Moment creation
-- Long-press interval Moment capture
-- Inline Moment editing
-- Local media hooks and thumbnail preview
-- Multiple Moment recall on the bulletin board
-- Local moment persistence
-- Friday-compatible JSON export
-- Static Cloudflare Pages deployment
+The demo accepts image, audio, and video files up to 25 MB each. A production version should additionally provide total quota reporting, portable media-package export, optional local encryption, and explicit backup/restore flows.
 
-Planned next:
+## License
 
-- More real Friday sample tracks
-- Schema validation for exported memory packages
-- Safer public demo media controls
-- Optional server JSON persistence
+AGPL-3.0. See `LICENSE`.
