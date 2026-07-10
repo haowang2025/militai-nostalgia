@@ -24,8 +24,7 @@ export const useRememberShortcut = ({ disabled, onStart, onEnd, onCancel }: Reme
       onStart();
     };
     const keyUp = (event: KeyboardEvent) => {
-      if (event.code !== 'Space' || isInteractiveTarget(event.target)) return;
-      if (!activeRef.current) return;
+      if (event.code !== 'Space' || !activeRef.current) return;
       event.preventDefault();
       activeRef.current = false;
       onEnd();
