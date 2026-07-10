@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://militai.me/schemas/friday-compatible-memory-v1.json",
+  "title": "MilitAIre Friday-compatible memory package",
+  "type": "object",
+  "required": ["version", "exported_at", "track", "segments"],
+  "properties": {
+    "version": { "type": "string" },
+    "exported_at": { "type": "string", "format": "date-time" },
+    "track": {
+      "type": "object",
+      "required": ["id", "title", "artist"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "artist": { "type": "string" },
+        "album": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "segments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["start", "end", "peak_t", "source", "content", "payload"],
+        "properties": {
+          "start": { "type": "number", "minimum": 0 },
+          "end": { "type": "number", "minimum": 0 },
+          "peak_t": { "type": "number", "minimum": 0 },
+          "source": { "const": "user" },
+          "content": { "type": "string" },
+          "payload": { "type": "object" }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}
