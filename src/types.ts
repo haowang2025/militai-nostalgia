@@ -56,6 +56,8 @@ export type Track = {
   friday_url: string;
   mood: string[];
   description: string;
+  source?: 'local' | 'netease' | string;
+  song_id?: number;
 };
 
 export type Moment = {
@@ -69,6 +71,7 @@ export type Moment = {
   mood: string[];
   tags: string[];
   payload?: MomentPayload;
+  anchor_lyric?: string;
   source: 'user';
   is_private: true;
   allow_recall: boolean;
