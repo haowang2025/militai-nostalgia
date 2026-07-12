@@ -43,6 +43,7 @@ export const onRequest = async (context: Context) => {
   const requestUrl = new URL(context.request.url);
   if (requestUrl.pathname.endsWith('/api/audio-proxy')) return proxyAudio(context.request, requestUrl);
   if (!context.env.NCM_ORIGIN) return new Response('NCM_ORIGIN is not configured', { status: 503 });
+  if (!context.env.NCM_SECRET) return new Response('NCM_SECRET is not configured', { status: 503 });
 
   const origin = context.env.NCM_ORIGIN.replace(/\/+$/, '');
   const target = new URL(origin + requestUrl.pathname.replace(/^\/api/, '') + requestUrl.search);
@@ -52,7 +53,8 @@ export const onRequest = async (context: Context) => {
   const headers = new Headers(context.request.headers);
   headers.delete('cookie');
   headers.delete('host');
-  if (context.env.NCM_SECRET) headers.set('Authorization', `Bearer ${context.env.NCM_SECRET}`);
+  headers.delete('authorization');
+  headers.set('Authorization', `Bearer ${context.env.NCM_SECRET}`);
 
   const upstream = await fetch(new Request(target.toString(), {
     method: context.request.method,
