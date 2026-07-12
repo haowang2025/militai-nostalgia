@@ -24,11 +24,12 @@ type MomentInput = {
   mood?: string[];
   tags?: string[];
   payload?: MomentPayload;
+  anchor_lyric?: string;
   start_s?: number;
   end_s?: number;
 };
 
-type MomentPatch = Partial<Pick<Moment, 'note' | 'mood' | 'tags' | 'payload' | 'allow_recall' | 'recall_style'>>;
+type MomentPatch = Partial<Pick<Moment, 'note' | 'mood' | 'tags' | 'payload' | 'anchor_lyric' | 'allow_recall' | 'recall_style'>>;
 
 type NostalgiaStore = {
   moments: Moment[];
@@ -48,10 +49,11 @@ export const useNostalgiaStore = create<NostalgiaStore>((set, get) => ({
     );
 
     if (duplicate) {
-      if (input.note || input.tags || input.payload) {
+      if (input.note || input.tags || input.payload || input.anchor_lyric) {
         const patch: MomentPatch = {
           note: input.note ?? duplicate.note,
           tags: input.tags ?? duplicate.tags,
+          anchor_lyric: input.anchor_lyric ?? duplicate.anchor_lyric,
           payload: input.payload ? { ...(duplicate.payload ?? {}), ...input.payload } : duplicate.payload,
         };
         get().updateMoment(duplicate.id, patch);
@@ -71,6 +73,7 @@ export const useNostalgiaStore = create<NostalgiaStore>((set, get) => ({
       mood: input.mood ?? [],
       tags: input.tags ?? [],
       payload: input.payload,
+      anchor_lyric: input.anchor_lyric,
       source: 'user',
       is_private: true,
       allow_recall: true,
