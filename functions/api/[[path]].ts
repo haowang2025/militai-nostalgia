@@ -24,7 +24,7 @@ async function proxyAudio(request: Request, requestUrl: URL) {
   } catch {
     return new Response('Invalid url', { status: 400 });
   }
-  if (target.protocol !== 'https:' || !allowedAudioHost(target.hostname)) {
+  if (!['http:', 'https:'].includes(target.protocol) || !allowedAudioHost(target.hostname)) {
     return new Response('Audio host is not allowed', { status: 403 });
   }
   const range = request.headers.get('Range');
