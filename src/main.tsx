@@ -11,6 +11,7 @@ import './moment-delete.css';
 import './remember-range.css';
 import './media-lightbox-dom.css';
 import './moment-anchor-hover.css';
+import './visual-refresh.css';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
