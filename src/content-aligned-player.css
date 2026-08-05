@@ -1,0 +1,107 @@
+.search-first-app {
+  --player-page-width: 1500px;
+  --player-page-gutter: clamp(14px, 3vw, 42px);
+}
+
+.legacy-player-layout {
+  padding-bottom: calc(106px + env(safe-area-inset-bottom));
+}
+
+.legacy-player-layout .transport-card {
+  left: 50%;
+  right: auto;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  width: calc(min(var(--player-page-width), 100vw) - (2 * var(--player-page-gutter)));
+  max-width: none;
+  min-height: 68px;
+  padding: 10px 14px;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  grid-template-areas: "controls actions progress";
+  align-items: center;
+  gap: 12px 16px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(76, 76, 66, .1);
+  border-radius: 22px;
+  background: rgba(252, 251, 247, .92);
+  box-shadow:
+    0 16px 44px rgba(44, 43, 36, .13),
+    0 2px 8px rgba(44, 43, 36, .05),
+    inset 0 1px 0 rgba(255, 255, 255, .9);
+}
+
+.legacy-player-layout .controls,
+.legacy-player-layout .legacy-transport-actions {
+  justify-self: start;
+  flex: 0 0 auto;
+}
+
+.legacy-player-layout .legacy-transport-actions {
+  justify-content: flex-start;
+}
+
+.legacy-player-layout .progress-area {
+  justify-self: stretch;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: 46px minmax(0, 1fr) 46px;
+  gap: 10px;
+}
+
+.legacy-player-layout .progress-line,
+.legacy-player-layout .progress-line input[type='range'] {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  .legacy-player-layout {
+    padding-bottom: calc(142px + env(safe-area-inset-bottom));
+  }
+
+  .legacy-player-layout .transport-card {
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    min-height: 0;
+    padding: 9px 11px;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "controls actions"
+      "progress progress";
+    gap: 6px 9px;
+    border-radius: 18px;
+  }
+
+  .legacy-player-layout .progress-area {
+    grid-template-columns: 40px minmax(0, 1fr) 40px;
+    gap: 7px;
+  }
+}
+
+@media (max-width: 700px) {
+  .search-first-app {
+    --player-page-gutter: 9px;
+  }
+}
+
+@media (max-width: 430px) {
+  .legacy-player-layout .transport-card {
+    padding-inline: 8px;
+    gap: 5px 6px;
+  }
+
+  .legacy-player-layout .controls {
+    gap: 2px;
+  }
+
+  .legacy-player-layout .legacy-transport-actions {
+    gap: 4px;
+  }
+
+  .legacy-player-layout .legacy-transport-actions > button {
+    padding-inline: 8px;
+  }
+
+  .legacy-player-layout .progress-area {
+    grid-template-columns: 36px minmax(0, 1fr) 36px;
+    gap: 5px;
+  }
+}
