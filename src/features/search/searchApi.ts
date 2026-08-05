@@ -20,8 +20,36 @@ export class SearchApiError extends Error {
   }
 }
 
-const API_BASE = import.meta.env.VITE_NETEASE_API_BASE
-  ?? 'https://netease-cloud-music-api-sandy-xi.vercel.app';
+export type SearchEndpoint = {
+  base: string;
+  path: '/search' | '/cloudsearch';
+};
+
+const configuredBase = import.meta.env.VITE_NETEASE_API_BASE?.trim();
+const DEPRECATED_BASES = new Set([
+  'https://netease-cloud-music-api-sandy-xi.vercel.app',
+]);
+const DEFAULT_ENDPOINTS: SearchEndpoint[] = [
+  { base: 'https://ezmusic-api.vercel.app', path: '/search' },
+  { base: 'https://netease-cloud-music-api-backup-roan-alpha.vercel.app', path: '/cloudsearch' },
+];
+const ENDPOINT_TIMEOUT_MS = 4_500;
+
+const normalizeBase = (base: string) => base.replace(/\/+$/, '');
+
+export const searchEndpoints = (): SearchEndpoint[] => {
+  const configuredEndpoints: SearchEndpoint[] = configuredBase && !DEPRECATED_BASES.has(normalizeBase(configuredBase))
+    ? [{ base: configuredBase, path: '/cloudsearch' }]
+    : [];
+  const candidates = [...configuredEndpoints, ...DEFAULT_ENDPOINTS];
+  const seen = new Set<string>();
+  return candidates.filter((endpoint) => {
+    const key = `${normalizeBase(endpoint.base)}${endpoint.path}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -66,51 +94,77 @@ export const adaptSearchResponse = (payload: unknown): SearchSong[] => readSongs
   .filter((item): item is SearchSong => Boolean(item))
   .slice(0, 10);
 
-export const searchSongs = async (query: string, signal?: AbortSignal): Promise<SearchSong[]> => {
-  const keyword = query.trim();
-  if (!keyword) return [];
-
+const searchEndpoint = async (
+  endpoint: SearchEndpoint,
+  keyword: string,
+  signal?: AbortSignal,
+): Promise<SearchSong[]> => {
   const controller = new AbortController();
   let timedOut = false;
   const timeout = window.setTimeout(() => {
     timedOut = true;
     controller.abort();
-  }, 10_000);
+  }, ENDPOINT_TIMEOUT_MS);
   const forwardAbort = () => controller.abort();
   signal?.addEventListener('abort', forwardAbort, { once: true });
 
   try {
-    const url = new URL('/cloudsearch', API_BASE);
+    const url = new URL(endpoint.path, endpoint.base);
     url.searchParams.set('keywords', keyword);
     url.searchParams.set('type', '1');
     url.searchParams.set('limit', '10');
     url.searchParams.set('offset', '0');
 
     const response = await fetch(url, { signal: controller.signal });
-    if (!response.ok) throw new SearchApiError('network', `音乐搜索服务暂时不可用（HTTP ${response.status}）。`);
+    if (!response.ok) throw new SearchApiError('network', `音乐搜索节点暂时不可用（HTTP ${response.status}）。`);
 
     let payload: unknown;
     try {
       payload = await response.json();
     } catch {
-      throw new SearchApiError('invalid_response', '音乐搜索服务返回了无法识别的数据。');
+      throw new SearchApiError('invalid_response', '音乐搜索节点返回了无法识别的数据。');
     }
 
     const songs = adaptSearchResponse(payload);
     if (!songs.length) throw new SearchApiError('empty_result', '没有找到可用歌曲，请换一个关键词。');
     return songs;
   } catch (error) {
+    if (signal?.aborted) throw new SearchApiError('aborted', '搜索已取消。');
+    if (timedOut) throw new SearchApiError('timeout', '音乐搜索节点响应超时。');
     if (error instanceof SearchApiError) throw error;
     if (error instanceof DOMException && error.name === 'AbortError') {
-      if (signal?.aborted) throw new SearchApiError('aborted', '搜索已取消。');
-      if (timedOut) throw new SearchApiError('timeout', '搜索超时，请稍后重试。');
       throw new SearchApiError('aborted', '搜索已取消。');
     }
-    throw new SearchApiError('network', '无法连接音乐搜索服务，请检查网络后重试。');
+    throw new SearchApiError('network', '无法连接音乐搜索节点。');
   } finally {
     window.clearTimeout(timeout);
     signal?.removeEventListener('abort', forwardAbort);
   }
+};
+
+export const searchSongs = async (query: string, signal?: AbortSignal): Promise<SearchSong[]> => {
+  const keyword = query.trim();
+  if (!keyword) return [];
+
+  const failures: SearchApiError[] = [];
+  for (const endpoint of searchEndpoints()) {
+    try {
+      return await searchEndpoint(endpoint, keyword, signal);
+    } catch (error) {
+      if (error instanceof SearchApiError && error.code === 'aborted') throw error;
+      failures.push(error instanceof SearchApiError
+        ? error
+        : new SearchApiError('network', '无法连接音乐搜索节点。'));
+    }
+  }
+
+  if (failures.some((error) => error.code === 'empty_result')) {
+    throw new SearchApiError('empty_result', '没有找到可用歌曲，请换一个关键词。');
+  }
+  if (failures.length && failures.every((error) => error.code === 'timeout')) {
+    throw new SearchApiError('timeout', '音乐搜索服务响应超时，备用节点也未能及时响应。');
+  }
+  throw new SearchApiError('network', '音乐搜索服务暂时不可用，已尝试备用节点。');
 };
 
 export const audioUrlForSong = (providerId: number) =>
