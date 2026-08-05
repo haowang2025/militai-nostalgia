@@ -11,7 +11,7 @@
   left: 50%;
   right: auto;
   bottom: calc(14px + env(safe-area-inset-bottom));
-  width: calc(min(var(--player-page-width), 100vw) - (2 * var(--player-page-gutter)));
+  width: calc(min(var(--player-page-width), 100vw) - var(--player-page-gutter) - var(--player-page-gutter));
   max-width: none;
   min-height: 68px;
   padding: 10px 14px;
