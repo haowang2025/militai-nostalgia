@@ -345,7 +345,7 @@ export function PlayerPage({
 
       <section className="legacy-player-heading" aria-label="当前播放歌曲">
         <div>
-          <span>{track.source === 'netease' ? 'ONLINE SEARCH · LOCAL MEMORY' : 'LOCAL DEMO'}</span>
+          <span>{track.source === 'online' ? 'ONLINE SEARCH · LOCAL MEMORY' : 'LOCAL DEMO'}</span>
           <h1>{track.title}</h1>
           <p>{track.artist}{track.album ? ` · ${track.album}` : ''}</p>
         </div>
