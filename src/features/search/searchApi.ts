@@ -22,26 +22,43 @@ export class SearchApiError extends Error {
 
 export type SearchEndpoint = {
   base: string;
-  path: '/search' | '/cloudsearch';
+  path: '/api/search' | '/search' | '/cloudsearch';
+  timeoutMs: number;
+};
+
+type SearchEndpointOptions = {
+  production?: boolean;
+  origin?: string;
 };
 
 const configuredBase = import.meta.env.VITE_NETEASE_API_BASE?.trim();
 const DEPRECATED_BASES = new Set([
   'https://netease-cloud-music-api-sandy-xi.vercel.app',
 ]);
-const DEFAULT_ENDPOINTS: SearchEndpoint[] = [
-  { base: 'https://ezmusic-api.vercel.app', path: '/search' },
-  { base: 'https://netease-cloud-music-api-backup-roan-alpha.vercel.app', path: '/cloudsearch' },
+const DEFAULT_DIRECT_ENDPOINTS: SearchEndpoint[] = [
+  { base: 'https://ezmusic-api.vercel.app', path: '/search', timeoutMs: 4_500 },
+  {
+    base: 'https://netease-cloud-music-api-backup-roan-alpha.vercel.app',
+    path: '/cloudsearch',
+    timeoutMs: 4_500,
+  },
 ];
-const ENDPOINT_TIMEOUT_MS = 4_500;
+const PROXY_TIMEOUT_MS = 10_000;
 
 const normalizeBase = (base: string) => base.replace(/\/+$/, '');
 
-export const searchEndpoints = (): SearchEndpoint[] => {
+export const searchEndpoints = (options: SearchEndpointOptions = {}): SearchEndpoint[] => {
+  const production = options.production ?? import.meta.env.PROD;
+  const origin = options.origin
+    ?? (typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
+  if (production) {
+    return [{ base: origin, path: '/api/search', timeoutMs: PROXY_TIMEOUT_MS }];
+  }
+
   const configuredEndpoints: SearchEndpoint[] = configuredBase && !DEPRECATED_BASES.has(normalizeBase(configuredBase))
-    ? [{ base: configuredBase, path: '/cloudsearch' }]
+    ? [{ base: configuredBase, path: '/cloudsearch', timeoutMs: 4_500 }]
     : [];
-  const candidates = [...configuredEndpoints, ...DEFAULT_ENDPOINTS];
+  const candidates = [...configuredEndpoints, ...DEFAULT_DIRECT_ENDPOINTS];
   const seen = new Set<string>();
   return candidates.filter((endpoint) => {
     const key = `${normalizeBase(endpoint.base)}${endpoint.path}`;
@@ -69,6 +86,11 @@ const readArtists = (song: Record<string, unknown>) => {
     .map((item) => isRecord(item) && typeof item.name === 'string' ? item.name.trim() : '')
     .filter(Boolean);
 };
+
+const readErrorMessage = (payload: unknown) =>
+  isRecord(payload) && typeof payload.message === 'string' && payload.message.trim()
+    ? payload.message.trim()
+    : null;
 
 export const adaptSearchResponse = (payload: unknown): SearchSong[] => readSongs(payload)
   .map((value): SearchSong | null => {
@@ -104,7 +126,7 @@ const searchEndpoint = async (
   const timeout = window.setTimeout(() => {
     timedOut = true;
     controller.abort();
-  }, ENDPOINT_TIMEOUT_MS);
+  }, endpoint.timeoutMs);
   const forwardAbort = () => controller.abort();
   signal?.addEventListener('abort', forwardAbort, { once: true });
 
@@ -116,13 +138,24 @@ const searchEndpoint = async (
     url.searchParams.set('offset', '0');
 
     const response = await fetch(url, { signal: controller.signal });
-    if (!response.ok) throw new SearchApiError('network', `音乐搜索节点暂时不可用（HTTP ${response.status}）。`);
+    if (!response.ok) {
+      let message: string | null = null;
+      try {
+        message = readErrorMessage(await response.json());
+      } catch {
+        message = null;
+      }
+      if (response.status === 504) {
+        throw new SearchApiError('timeout', message ?? '音乐搜索服务响应超时。');
+      }
+      throw new SearchApiError('network', message ?? `音乐搜索服务暂时不可用（HTTP ${response.status}）。`);
+    }
 
     let payload: unknown;
     try {
       payload = await response.json();
     } catch {
-      throw new SearchApiError('invalid_response', '音乐搜索节点返回了无法识别的数据。');
+      throw new SearchApiError('invalid_response', '音乐搜索服务返回了无法识别的数据。');
     }
 
     const songs = adaptSearchResponse(payload);
@@ -130,12 +163,12 @@ const searchEndpoint = async (
     return songs;
   } catch (error) {
     if (signal?.aborted) throw new SearchApiError('aborted', '搜索已取消。');
-    if (timedOut) throw new SearchApiError('timeout', '音乐搜索节点响应超时。');
+    if (timedOut) throw new SearchApiError('timeout', '音乐搜索服务响应超时。');
     if (error instanceof SearchApiError) throw error;
     if (error instanceof DOMException && error.name === 'AbortError') {
       throw new SearchApiError('aborted', '搜索已取消。');
     }
-    throw new SearchApiError('network', '无法连接音乐搜索节点。');
+    throw new SearchApiError('network', '无法连接音乐搜索服务。');
   } finally {
     window.clearTimeout(timeout);
     signal?.removeEventListener('abort', forwardAbort);
@@ -146,15 +179,16 @@ export const searchSongs = async (query: string, signal?: AbortSignal): Promise<
   const keyword = query.trim();
   if (!keyword) return [];
 
+  const endpoints = searchEndpoints();
   const failures: SearchApiError[] = [];
-  for (const endpoint of searchEndpoints()) {
+  for (const endpoint of endpoints) {
     try {
       return await searchEndpoint(endpoint, keyword, signal);
     } catch (error) {
       if (error instanceof SearchApiError && error.code === 'aborted') throw error;
       failures.push(error instanceof SearchApiError
         ? error
-        : new SearchApiError('network', '无法连接音乐搜索节点。'));
+        : new SearchApiError('network', '无法连接音乐搜索服务。'));
     }
   }
 
@@ -162,9 +196,12 @@ export const searchSongs = async (query: string, signal?: AbortSignal): Promise<
     throw new SearchApiError('empty_result', '没有找到可用歌曲，请换一个关键词。');
   }
   if (failures.length && failures.every((error) => error.code === 'timeout')) {
-    throw new SearchApiError('timeout', '音乐搜索服务响应超时，备用节点也未能及时响应。');
+    throw new SearchApiError(
+      'timeout',
+      endpoints.length > 1 ? '音乐搜索服务响应超时，备用节点也未能及时响应。' : '音乐搜索服务响应超时。',
+    );
   }
-  throw new SearchApiError('network', '音乐搜索服务暂时不可用，已尝试备用节点。');
+  throw new SearchApiError('network', '音乐搜索服务暂时不可用。');
 };
 
 export const audioUrlForSong = (providerId: number) =>
