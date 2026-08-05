@@ -77,7 +77,10 @@ const parseTrack = (value: unknown): LocalTrack | null => {
   const artists = Array.isArray(value.artists)
     ? value.artists.filter((item): item is string => typeof item === 'string')
     : artist ? [artist] : [];
-  const source = value.source === 'demo' ? 'demo' : 'online';
+  const providerId = typeof value.provider_id === 'number' && Number.isFinite(value.provider_id)
+    ? value.provider_id
+    : undefined;
+  const source = value.source === 'demo' || providerId === undefined ? 'demo' : 'online';
   const track: LocalTrack = {
     id: value.id,
     source,
@@ -96,7 +99,7 @@ const parseTrack = (value: unknown): LocalTrack | null => {
       ? Math.max(0, value.last_position_s)
       : 0,
   };
-  if (typeof value.provider_id === 'number' && Number.isFinite(value.provider_id)) track.provider_id = value.provider_id;
+  if (providerId !== undefined) track.provider_id = providerId;
   if (typeof value.album === 'string') track.album = value.album;
   if (typeof value.cover_url === 'string') track.cover_url = value.cover_url;
   return track;
@@ -188,17 +191,24 @@ export const useTrackStore = create<TrackStore>((set, get) => ({
   storageError: null,
 
   upsertTrack: (incoming) => {
-    const existing = get().tracks.find((track) => track.id === incoming.id);
+    const existing = get().tracks.find((track) =>
+      track.id === incoming.id
+      || (incoming.provider_id !== undefined && track.provider_id === incoming.provider_id),
+    );
     const nextTrack: LocalTrack = existing
       ? {
           ...existing,
           ...incoming,
+          id: existing.id,
           created_at: existing.created_at,
           last_position_s: existing.last_position_s,
           last_opened_at: nowIso(),
         }
       : incoming;
-    const tracks = [nextTrack, ...get().tracks.filter((track) => track.id !== incoming.id)];
+    const tracks = [nextTrack, ...get().tracks.filter((track) =>
+      track.id !== nextTrack.id
+      && (nextTrack.provider_id === undefined || track.provider_id !== nextTrack.provider_id),
+    )];
     const storageError = persist(tracks, nextTrack.id);
     set({ tracks, currentTrackId: nextTrack.id, storageError });
     return nextTrack;
