@@ -29,6 +29,16 @@ describe('adaptSearchResponse', () => {
     const songs = adaptSearchResponse({ result: { songs: [null, { id: 1, name: 'Song' }, { id: 'bad', name: 'No' }] } });
     expect(songs).toEqual([{ provider: 'n', providerId: 1, name: 'Song', artists: [] }]);
   });
+
+  it('caps valid upstream rows at ten even if the service ignores the requested limit', () => {
+    const songs = adaptSearchResponse({
+      result: {
+        songs: Array.from({ length: 14 }, (_, index) => ({ id: index + 1, name: `Song ${index + 1}` })),
+      },
+    });
+    expect(songs).toHaveLength(10);
+    expect(songs.at(-1)?.providerId).toBe(10);
+  });
 });
 
 describe('song URL helpers', () => {

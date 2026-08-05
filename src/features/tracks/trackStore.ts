@@ -17,6 +17,13 @@ export type LocalTrack = Track & {
 type TrackEnvelope = { version: 1; tracks: LocalTrack[] };
 type PlaybackEnvelope = { currentTrackId?: string; positions: Record<string, number>; updatedAt: string };
 
+export type PlaybackMediaState = {
+  ready: boolean;
+  atStart: boolean;
+  ended: boolean;
+  matchesTrack: boolean;
+};
+
 const TRACK_KEY = 'militai-nostalgia/tracks/v1';
 const PLAYBACK_KEY = 'militai-nostalgia/playback/v1';
 
@@ -24,6 +31,34 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
 const nowIso = () => new Date().toISOString();
+
+export const shouldAcceptPositionUpdate = (
+  previousPosition: number,
+  nextPosition: number,
+  mediaState?: PlaybackMediaState,
+) => {
+  if (nextPosition > 0.05 || previousPosition <= 0.05) return true;
+  if (!mediaState?.matchesTrack) return false;
+  return mediaState.ended || (mediaState.ready && mediaState.atStart);
+};
+
+const readPlayerMediaState = (audioUrl: string): PlaybackMediaState | undefined => {
+  if (typeof document === 'undefined') return undefined;
+  const media = document.querySelector('.sf-player-page > audio');
+  if (!(media instanceof HTMLAudioElement)) return undefined;
+  let expectedUrl: string;
+  try {
+    expectedUrl = new URL(audioUrl, window.location.href).href;
+  } catch {
+    return undefined;
+  }
+  return {
+    ready: media.readyState >= 1,
+    atStart: media.currentTime <= 0.05,
+    ended: media.ended,
+    matchesTrack: media.src === expectedUrl || media.currentSrc === expectedUrl,
+  };
+};
 
 const demoLocalTracks = (): LocalTrack[] => demoTracks.map((track, index) => ({
   ...track,
@@ -176,6 +211,10 @@ export const useTrackStore = create<TrackStore>((set, get) => ({
 
   updatePosition: (id, position) => {
     const safePosition = Math.max(0, Number.isFinite(position) ? position : 0);
+    const existing = get().tracks.find((track) => track.id === id);
+    if (existing && !shouldAcceptPositionUpdate(existing.last_position_s, safePosition, readPlayerMediaState(existing.audio_url))) {
+      return;
+    }
     const tracks = get().tracks.map((track) => track.id === id ? { ...track, last_position_s: safePosition } : track);
     set({ tracks, storageError: persist(tracks, get().currentTrackId) });
   },

@@ -45,6 +45,7 @@ export function SearchPanel({
     try {
       await onSelectSong(song);
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
       setUnavailable((items) => Array.from(new Set([...items, song.providerId])));
       setOpenError(error instanceof Error ? error.message : '这首歌当前无法加载。');
     } finally {
@@ -76,6 +77,7 @@ export function SearchPanel({
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (openingId !== null) return;
     const keyword = query.trim();
     if (!keyword) return;
     requestRef.current?.abort();
@@ -99,17 +101,18 @@ export function SearchPanel({
   };
 
   return (
-    <div className="sf-search-panel">
+    <div className="sf-search-panel" aria-busy={state.status === 'loading' || openingId !== null}>
       <form className="sf-search-form" onSubmit={(event) => { void submit(event); }}>
         <input
           value={query}
           autoFocus={autoFocus}
+          disabled={openingId !== null}
           placeholder="歌曲、歌手，例如：海阔天空 黄家驹"
           aria-label="搜索歌曲或歌手"
           onChange={(event) => setQuery(event.target.value)}
         />
-        <button type="submit" disabled={state.status === 'loading' || !query.trim()}>
-          {state.status === 'loading' ? '搜索中…' : '搜索'}
+        <button type="submit" disabled={state.status === 'loading' || openingId !== null || !query.trim()}>
+          {state.status === 'loading' ? '搜索中…' : openingId !== null ? '正在准备歌曲…' : '搜索'}
         </button>
       </form>
 
