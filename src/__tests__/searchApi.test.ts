@@ -36,7 +36,7 @@ describe('adaptSearchResponse', () => {
     }]);
   });
 
-  it('normalizes the legacy search response shape used by the new primary endpoint', () => {
+  it('normalizes the legacy search response shape used by the upstream search endpoint', () => {
     const songs = adaptSearchResponse({
       result: {
         songs: [{
@@ -72,9 +72,18 @@ describe('adaptSearchResponse', () => {
   });
 });
 
-describe('search endpoint failover', () => {
-  it('uses the responding backup when the first endpoint has a network failure', async () => {
+describe('search endpoint routing', () => {
+  it('uses a same-origin Pages Function in production', () => {
+    expect(searchEndpoints({ production: true, origin: 'https://militaire.pages.dev' })).toEqual([{
+      base: 'https://militaire.pages.dev',
+      path: '/api/search',
+      timeoutMs: 10_000,
+    }]);
+  });
+
+  it('uses the responding backup during direct local development', async () => {
     vi.stubGlobal('window', {
+      location: { origin: 'http://localhost:5173' },
       setTimeout: globalThis.setTimeout,
       clearTimeout: globalThis.clearTimeout,
     });
@@ -98,8 +107,8 @@ describe('search endpoint failover', () => {
     expect(secondUrl.origin).toBe('https://netease-cloud-music-api-backup-roan-alpha.vercel.app');
   });
 
-  it('keeps at least two distinct default endpoints', () => {
-    const endpoints = searchEndpoints();
+  it('keeps at least two distinct direct development endpoints', () => {
+    const endpoints = searchEndpoints({ production: false });
     expect(endpoints.length).toBeGreaterThanOrEqual(2);
     expect(new Set(endpoints.map((endpoint) => `${endpoint.base}${endpoint.path}`)).size).toBe(endpoints.length);
   });
