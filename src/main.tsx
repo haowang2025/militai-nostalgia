@@ -14,6 +14,7 @@ import './legacy-subpages.css';
 import './compact-player-bar.css';
 import './moment-marker-drag.css';
 import './progress-length-fix.css';
+import './full-width-bottom-player.css';
 
 enableMomentMarkerDrag();
 
