@@ -63,7 +63,8 @@ export const adaptSearchResponse = (payload: unknown): SearchSong[] => readSongs
     if (typeof duration === 'number' && Number.isFinite(duration) && duration > 0) item.durationMs = duration;
     return item;
   })
-  .filter((item): item is SearchSong => Boolean(item));
+  .filter((item): item is SearchSong => Boolean(item))
+  .slice(0, 10);
 
 export const searchSongs = async (query: string, signal?: AbortSignal): Promise<SearchSong[]> => {
   const keyword = query.trim();

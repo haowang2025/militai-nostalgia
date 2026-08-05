@@ -1,15 +1,21 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNostalgiaStore } from './store';
 import type { SearchSong } from './features/search/searchApi';
 import { SearchPanel, Cover } from './features/search/SearchPanel';
 import { PlayerPage } from './features/player/SearchFirstPlayer';
-import { localTrackFromSearchSong, useTrackStore, type LocalTrack } from './features/tracks/trackStore';
+import { probeSong } from './features/tracks/probeSong';
+import { useTrackStore, type LocalTrack } from './features/tracks/trackStore';
 
 type Route =
   | { view: 'search' }
   | { view: 'library' }
   | { view: 'settings' }
   | { view: 'player'; trackId: string };
+
+type PendingSelection = {
+  controller: AbortController;
+  token: number;
+};
 
 const repoUrl = 'https://github.com/haowang2025/militai-nostalgia';
 
@@ -54,32 +60,6 @@ const formatTime = (value: number) => {
   return `${minutes}:${seconds}`;
 };
 
-const probeSong = (song: SearchSong) => new Promise<LocalTrack>((resolve, reject) => {
-  const audio = document.createElement('audio');
-  const fallbackDuration = song.durationMs ? song.durationMs / 1000 : undefined;
-  let settled = false;
-  const finish = (track?: LocalTrack, error?: Error) => {
-    if (settled) return;
-    settled = true;
-    window.clearTimeout(timeout);
-    audio.removeAttribute('src');
-    audio.load();
-    if (track) resolve(track);
-    else reject(error ?? new Error('这首歌当前无法加载，请选择其他版本或稍后重试。'));
-  };
-  const succeed = () => {
-    const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : fallbackDuration;
-    finish(localTrackFromSearchSong(song, duration));
-  };
-  const timeout = window.setTimeout(() => finish(undefined, new Error('歌曲加载超时，请选择其他版本或稍后重试。')), 12_000);
-  audio.preload = 'metadata';
-  audio.addEventListener('loadedmetadata', succeed, { once: true });
-  audio.addEventListener('canplay', succeed, { once: true });
-  audio.addEventListener('error', () => finish(undefined, new Error('这首歌当前无法加载，请选择其他版本或稍后重试。')), { once: true });
-  audio.src = localTrackFromSearchSong(song).audio_url;
-  audio.load();
-});
-
 function SearchFirstApp() {
   const { route, navigate } = useAppRoute();
   const tracks = useTrackStore((state) => state.tracks);
@@ -89,6 +69,8 @@ function SearchFirstApp() {
   const clearTrackStorageError = useTrackStore((state) => state.clearStorageError);
   const momentStorageError = useNostalgiaStore((state) => state.storageError);
   const clearMomentStorageError = useNostalgiaStore((state) => state.clearStorageError);
+  const selectionRef = useRef<PendingSelection | null>(null);
+  const selectionSequenceRef = useRef(0);
   const [notice, setNotice] = useState<string | null>(null);
 
   const recentTracks = useMemo(
@@ -96,33 +78,71 @@ function SearchFirstApp() {
     [tracks],
   );
 
+  const cancelPendingSelection = useCallback(() => {
+    selectionSequenceRef.current += 1;
+    selectionRef.current?.controller.abort();
+    selectionRef.current = null;
+  }, []);
+
+  const navigateSafely = useCallback((next: Route, replace = false) => {
+    cancelPendingSelection();
+    navigate(next, replace);
+  }, [cancelPendingSelection, navigate]);
+
+  useEffect(() => {
+    const cancelWhenHidden = () => {
+      if (document.hidden) cancelPendingSelection();
+    };
+    window.addEventListener('popstate', cancelPendingSelection);
+    document.addEventListener('visibilitychange', cancelWhenHidden);
+    return () => {
+      window.removeEventListener('popstate', cancelPendingSelection);
+      document.removeEventListener('visibilitychange', cancelWhenHidden);
+      cancelPendingSelection();
+    };
+  }, [cancelPendingSelection]);
+
   const selectSong = useCallback(async (song: SearchSong) => {
-    const prepared = await probeSong(song);
-    const saved = upsertTrack(prepared);
-    setCurrentTrack(saved.id);
-    navigate({ view: 'player', trackId: saved.id });
-  }, [navigate, setCurrentTrack, upsertTrack]);
+    cancelPendingSelection();
+    const controller = new AbortController();
+    const token = selectionSequenceRef.current;
+    selectionRef.current = { controller, token };
+
+    try {
+      const prepared = await probeSong(song, controller.signal);
+      if (controller.signal.aborted || selectionRef.current?.token !== token) {
+        throw new DOMException('歌曲准备已取消。', 'AbortError');
+      }
+      const saved = upsertTrack(prepared);
+      setCurrentTrack(saved.id);
+      selectionRef.current = null;
+      navigate({ view: 'player', trackId: saved.id });
+    } finally {
+      if (selectionRef.current?.token === token) selectionRef.current = null;
+    }
+  }, [cancelPendingSelection, navigate, setCurrentTrack, upsertTrack]);
 
   useEffect(() => {
     if (route.view !== 'player') return;
     if (tracks.some((track) => track.id === route.trackId)) return;
     setNotice('这首歌曲尚未保存在当前浏览器，请重新搜索。');
-    navigate({ view: 'search' }, true);
-  }, [navigate, route, tracks]);
+    navigateSafely({ view: 'search' }, true);
+  }, [navigateSafely, route, tracks]);
 
   const openLocalTrack = useCallback((track: LocalTrack) => {
+    cancelPendingSelection();
     setCurrentTrack(track.id);
     navigate({ view: 'player', trackId: track.id });
-  }, [navigate, setCurrentTrack]);
+  }, [cancelPendingSelection, navigate, setCurrentTrack]);
 
   return (
     <div className="search-first-app">
       <TopBar
         route={route}
-        onHome={() => navigate({ view: 'search' })}
-        onSearch={() => navigate({ view: 'search' })}
-        onLibrary={() => navigate({ view: 'library' })}
-        onSettings={() => navigate({ view: 'settings' })}
+        onHome={() => navigateSafely({ view: 'search' })}
+        onSearch={() => navigateSafely({ view: 'search' })}
+        onLibrary={() => navigateSafely({ view: 'library' })}
+        onSettings={() => navigateSafely({ view: 'settings' })}
       />
       {notice ? <StatusBanner message={notice} onDismiss={() => setNotice(null)} /> : null}
       {trackStorageError ? <StatusBanner message={trackStorageError} onDismiss={clearTrackStorageError} /> : null}
@@ -132,7 +152,7 @@ function SearchFirstApp() {
         <SearchPage recentTracks={recentTracks} onSelectSong={selectSong} onOpenTrack={openLocalTrack} />
       ) : null}
       {route.view === 'library' ? (
-        <LibraryPage tracks={recentTracks} onOpenTrack={openLocalTrack} onSearch={() => navigate({ view: 'search' })} />
+        <LibraryPage tracks={recentTracks} onOpenTrack={openLocalTrack} onSearch={() => navigateSafely({ view: 'search' })} />
       ) : null}
       {route.view === 'settings' ? <SettingsPage tracks={tracks} /> : null}
       {route.view === 'player' ? (
