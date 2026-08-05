@@ -1,5 +1,16 @@
-import { describe, expect, it } from 'vitest';
-import { adaptSearchResponse, audioUrlForSong, trackIdForSong } from '../features/search/searchApi';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  adaptSearchResponse,
+  audioUrlForSong,
+  searchEndpoints,
+  searchSongs,
+  trackIdForSong,
+} from '../features/search/searchApi';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe('adaptSearchResponse', () => {
   it('normalizes NetEase cloudsearch songs', () => {
@@ -25,6 +36,26 @@ describe('adaptSearchResponse', () => {
     }]);
   });
 
+  it('normalizes the legacy search response shape used by the new primary endpoint', () => {
+    const songs = adaptSearchResponse({
+      result: {
+        songs: [{
+          id: 347230,
+          name: '海阔天空',
+          artists: [{ name: 'Beyond' }],
+          album: { name: '乐与怒', picUrl: 'https://example.com/cover.jpg' },
+          duration: 326000,
+        }],
+      },
+    });
+    expect(songs[0]).toMatchObject({
+      providerId: 347230,
+      artists: ['Beyond'],
+      albumName: '乐与怒',
+      durationMs: 326000,
+    });
+  });
+
   it('ignores malformed rows while keeping partial valid rows', () => {
     const songs = adaptSearchResponse({ result: { songs: [null, { id: 1, name: 'Song' }, { id: 'bad', name: 'No' }] } });
     expect(songs).toEqual([{ provider: 'n', providerId: 1, name: 'Song', artists: [] }]);
@@ -38,6 +69,39 @@ describe('adaptSearchResponse', () => {
     });
     expect(songs).toHaveLength(10);
     expect(songs.at(-1)?.providerId).toBe(10);
+  });
+});
+
+describe('search endpoint failover', () => {
+  it('uses the responding backup when the first endpoint has a network failure', async () => {
+    vi.stubGlobal('window', {
+      setTimeout: globalThis.setTimeout,
+      clearTimeout: globalThis.clearTimeout,
+    });
+    const fetchMock = vi.fn<typeof fetch>();
+    fetchMock
+      .mockRejectedValueOnce(new TypeError('network unavailable'))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        result: {
+          songs: [{ id: 347230, name: '海阔天空', artists: [{ name: 'Beyond' }] }],
+        },
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const songs = await searchSongs('海阔天空');
+
+    expect(songs[0]?.providerId).toBe(347230);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const firstUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
+    const secondUrl = new URL(String(fetchMock.mock.calls[1]?.[0]));
+    expect(firstUrl.origin).toBe('https://ezmusic-api.vercel.app');
+    expect(secondUrl.origin).toBe('https://netease-cloud-music-api-backup-roan-alpha.vercel.app');
+  });
+
+  it('keeps at least two distinct default endpoints', () => {
+    const endpoints = searchEndpoints();
+    expect(endpoints.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(endpoints.map((endpoint) => `${endpoint.base}${endpoint.path}`)).size).toBe(endpoints.length);
   });
 });
 
