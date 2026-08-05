@@ -20,25 +20,31 @@ export class SearchApiError extends Error {
   }
 }
 
-type SearchEndpoint = {
+export type SearchEndpoint = {
   base: string;
   path: '/search' | '/cloudsearch';
 };
 
 const configuredBase = import.meta.env.VITE_NETEASE_API_BASE?.trim();
+const DEPRECATED_BASES = new Set([
+  'https://netease-cloud-music-api-sandy-xi.vercel.app',
+]);
 const DEFAULT_ENDPOINTS: SearchEndpoint[] = [
   { base: 'https://ezmusic-api.vercel.app', path: '/search' },
   { base: 'https://netease-cloud-music-api-backup-roan-alpha.vercel.app', path: '/cloudsearch' },
 ];
 const ENDPOINT_TIMEOUT_MS = 4_500;
 
+const normalizeBase = (base: string) => base.replace(/\/+$/, '');
+
 export const searchEndpoints = (): SearchEndpoint[] => {
-  const candidates: SearchEndpoint[] = configuredBase
-    ? [{ base: configuredBase, path: '/cloudsearch' }, ...DEFAULT_ENDPOINTS]
-    : DEFAULT_ENDPOINTS;
+  const configuredEndpoints: SearchEndpoint[] = configuredBase && !DEPRECATED_BASES.has(normalizeBase(configuredBase))
+    ? [{ base: configuredBase, path: '/cloudsearch' }]
+    : [];
+  const candidates = [...configuredEndpoints, ...DEFAULT_ENDPOINTS];
   const seen = new Set<string>();
   return candidates.filter((endpoint) => {
-    const key = `${endpoint.base.replace(/\/+$/, '')}${endpoint.path}`;
+    const key = `${normalizeBase(endpoint.base)}${endpoint.path}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
