@@ -1,0 +1,86 @@
+.legacy-player-layout .transport-card {
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-areas:
+    "progress progress progress"
+    "controls controls actions";
+  gap: 6px 14px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.legacy-player-layout .progress-area {
+  width: 100%;
+  grid-template-columns: 46px minmax(0, 1fr) 46px;
+  gap: 10px;
+}
+
+.legacy-player-layout .progress-line {
+  width: 100%;
+  min-width: 0;
+}
+
+.legacy-player-layout .progress-line input[type='range'] {
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+}
+
+.legacy-player-layout .progress-line input[type='range']::-webkit-slider-runnable-track {
+  height: 42px;
+  background: transparent;
+}
+
+.legacy-player-layout .progress-line input[type='range']::-webkit-slider-thumb {
+  width: 1px;
+  height: 42px;
+  margin: 0;
+  border: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+}
+
+.legacy-player-layout .progress-line input[type='range']::-moz-range-track {
+  height: 42px;
+  border: 0;
+  background: transparent;
+}
+
+.legacy-player-layout .progress-line input[type='range']::-moz-range-thumb {
+  width: 1px;
+  height: 42px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.legacy-player-layout .controls {
+  justify-self: center;
+}
+
+.legacy-player-layout .legacy-transport-actions {
+  justify-self: end;
+}
+
+@media (max-width: 760px) {
+  .legacy-player-layout .transport-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "progress progress"
+      "controls actions";
+    gap: 5px 8px;
+  }
+
+  .legacy-player-layout .progress-area {
+    grid-template-columns: 40px minmax(0, 1fr) 40px;
+    gap: 7px;
+  }
+
+  .legacy-player-layout .progress-line input[type='range']::-webkit-slider-runnable-track,
+  .legacy-player-layout .progress-line input[type='range']::-webkit-slider-thumb,
+  .legacy-player-layout .progress-line input[type='range']::-moz-range-track,
+  .legacy-player-layout .progress-line input[type='range']::-moz-range-thumb {
+    height: 38px;
+  }
+}
