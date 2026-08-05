@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import SearchFirstApp from './SearchFirstApp';
+import { enableMomentMarkerDrag } from './features/player/momentMarkerDrag';
 import './index.css';
 import './moment-delete.css';
 import './remember-range.css';
@@ -11,6 +12,9 @@ import './search-first-base.css';
 import './search-first-player.css';
 import './legacy-subpages.css';
 import './compact-player-bar.css';
+import './moment-marker-drag.css';
+
+enableMomentMarkerDrag();
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root element.');
