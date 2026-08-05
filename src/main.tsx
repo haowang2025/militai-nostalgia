@@ -10,6 +10,7 @@ import './quality-improvements.css';
 import './search-first-base.css';
 import './search-first-player.css';
 import './legacy-subpages.css';
+import './compact-player-bar.css';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root element.');

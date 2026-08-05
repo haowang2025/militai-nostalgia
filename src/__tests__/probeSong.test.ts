@@ -52,7 +52,7 @@ describe('probeSong', () => {
     audio.dispatchEvent(new Event('loadedmetadata'));
 
     await expect(pending).resolves.toMatchObject({
-      id: 'netease-123',
+      id: 'online-123',
       duration_s: 180,
       title: 'Test Song',
     });

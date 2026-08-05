@@ -207,4 +207,4 @@ export const searchSongs = async (query: string, signal?: AbortSignal): Promise<
 export const audioUrlForSong = (providerId: number) =>
   `https://music.163.com/song/media/outer/url?id=${providerId}.mp3`;
 
-export const trackIdForSong = (providerId: number) => `netease-${providerId}`;
+export const trackIdForSong = (providerId: number) => `online-${providerId}`;

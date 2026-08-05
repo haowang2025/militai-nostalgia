@@ -7,9 +7,9 @@ A local-first music memory layer for saving private Moments while listening.
 
 ## Current product scope
 
-- Search songs from the configured NetEase Cloud Music API proxy.
+- Search songs from the configured music-search API proxy.
 - Review up to ten song matches, or let the first result open after a ten-second countdown.
-- Load audio from `music.163.com` without adding an application backend.
+- Load remote audio without adding an application backend.
 - Save opened tracks, last playback positions, and private Moments in the current browser.
 - Press or hold **记住此刻** to create a point or interval Moment.
 - Use the `Space` key for the same short-press/long-press interaction.
@@ -22,25 +22,21 @@ The app does not interpret, judge, coach, chat, or automatically upload private 
 
 ## Search and audio services
 
-The default search endpoint is:
+Production clients use the same-origin `/api/search` Pages Function. Direct development fallback endpoints and the audio URL pattern are kept inside the API adapter.
 
-```txt
-https://netease-cloud-music-api-sandy-xi.vercel.app/cloudsearch
-```
-
-Override it during development or deployment with:
+A custom search upstream can be configured with:
 
 ```bash
 VITE_NETEASE_API_BASE=https://your-api.example.com
 ```
 
-Audio URLs use this pattern:
+The current remote audio API pattern is:
 
 ```txt
 https://music.163.com/song/media/outer/url?id={songId}.mp3
 ```
 
-Search or playback may fail for individual songs because of regional, copyright, CORS, or upstream service restrictions. A failed song is not added to the local Library.
+Search or playback may fail for individual songs because of regional, copyright, CORS, or upstream-service restrictions. A failed song is not added to the local Library.
 
 ## Storage and privacy
 

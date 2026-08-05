@@ -1,0 +1,146 @@
+.legacy-player-layout {
+  padding-bottom: 170px;
+}
+
+.legacy-player-layout .transport-card {
+  position: fixed;
+  left: 50%;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  z-index: 60;
+  width: min(860px, calc(100vw - 32px));
+  min-height: 0;
+  margin: 0;
+  padding: 12px 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(190px, auto);
+  grid-template-areas:
+    "progress progress progress"
+    "shortcut controls actions";
+  align-items: center;
+  gap: 8px 16px;
+  border-radius: 22px;
+  background: rgba(251, 250, 247, .94);
+  box-shadow: 0 18px 58px rgba(39, 38, 31, .2), 0 0 0 1px rgba(255, 255, 255, .72) inset;
+  backdrop-filter: blur(24px) saturate(1.12);
+}
+
+.legacy-player-layout .shortcut {
+  grid-area: shortcut;
+  min-width: 0;
+  gap: 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.legacy-player-layout .shortcut span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.legacy-player-layout .shortcut kbd {
+  padding: 5px 9px;
+  font-size: 11px;
+}
+
+.legacy-player-layout .progress-area {
+  grid-area: progress;
+  grid-template-columns: 52px minmax(0, 1fr) 52px;
+  gap: 10px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.legacy-player-layout .progress-line {
+  height: 24px;
+}
+
+.legacy-player-layout .moment-dot {
+  top: -2px;
+  width: 22px;
+  height: 22px;
+  font-size: 9px;
+  box-shadow: 0 0 0 4px rgba(154, 164, 95, .1);
+}
+
+.legacy-player-layout .controls {
+  grid-area: controls;
+  gap: 14px;
+}
+
+.legacy-player-layout .controls button {
+  font-size: 17px;
+}
+
+.legacy-player-layout .controls .play {
+  width: 48px;
+  height: 48px;
+  font-size: 21px;
+  box-shadow: 0 8px 22px rgba(154, 164, 95, .3);
+}
+
+.legacy-player-layout .legacy-transport-actions {
+  grid-area: actions;
+  display: flex;
+  grid-template-columns: none;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.legacy-player-layout .legacy-transport-actions > button {
+  min-height: 34px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.legacy-player-layout .legacy-transport-actions > button:nth-child(2) {
+  display: none;
+}
+
+.legacy-player-layout .legacy-remember-action {
+  grid-column: auto;
+}
+
+@media (max-width: 720px) {
+  .legacy-player-layout {
+    padding-bottom: 145px;
+  }
+
+  .legacy-player-layout .transport-card {
+    bottom: calc(6px + env(safe-area-inset-bottom));
+    width: calc(100vw - 12px);
+    padding: 10px 11px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "progress progress"
+      "controls actions";
+    gap: 7px 10px;
+    border-radius: 18px;
+  }
+
+  .legacy-player-layout .shortcut {
+    display: none;
+  }
+
+  .legacy-player-layout .progress-area {
+    grid-template-columns: 40px minmax(0, 1fr) 40px;
+    gap: 7px;
+    font-size: 11px;
+  }
+
+  .legacy-player-layout .controls {
+    justify-content: flex-start;
+    gap: 10px;
+  }
+
+  .legacy-player-layout .controls .play {
+    width: 43px;
+    height: 43px;
+  }
+
+  .legacy-player-layout .legacy-transport-actions > button {
+    padding-inline: 9px;
+    font-size: 11px;
+  }
+}
