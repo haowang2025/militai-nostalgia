@@ -230,7 +230,7 @@ function SettingsPage({ tracks }: { tracks: LocalTrack[] }) {
       <section className="sf-privacy-card">
         <h2>数据与网络</h2>
         <p>歌曲、播放进度和 Moment 默认保存在当前浏览器。</p>
-        <p>搜索关键词会发送到配置的音乐搜索 API；歌曲音频会从 music.163.com 加载。</p>
+        <p>搜索关键词会发送到配置的音乐搜索 API；歌曲音频会从远程音频服务加载。</p>
         <p>Moment 文本、标签和本地媒体不会自动上传。清除浏览器站点数据会删除本地曲库和 Moment。</p>
       </section>
     </main>
