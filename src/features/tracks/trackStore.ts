@@ -5,7 +5,7 @@ import type { SearchSong } from '../search/searchApi';
 import { audioUrlForSong, trackIdForSong } from '../search/searchApi';
 
 export type LocalTrack = Track & {
-  source: 'netease' | 'demo';
+  source: 'online' | 'demo';
   provider_id?: number;
   artists: string[];
   cover_url?: string;
@@ -77,7 +77,7 @@ const parseTrack = (value: unknown): LocalTrack | null => {
   const artists = Array.isArray(value.artists)
     ? value.artists.filter((item): item is string => typeof item === 'string')
     : artist ? [artist] : [];
-  const source = value.source === 'netease' ? 'netease' : 'demo';
+  const source = value.source === 'demo' ? 'demo' : 'online';
   const track: LocalTrack = {
     id: value.id,
     source,
@@ -147,7 +147,7 @@ export const localTrackFromSearchSong = (song: SearchSong, durationSeconds?: num
   const artist = song.artists.join(' / ') || '未知歌手';
   const track: LocalTrack = {
     id: trackIdForSong(song.providerId),
-    source: 'netease',
+    source: 'online',
     provider_id: song.providerId,
     title: song.name,
     artist,
