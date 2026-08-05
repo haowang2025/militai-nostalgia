@@ -13,6 +13,7 @@ import './search-first-player.css';
 import './legacy-subpages.css';
 import './compact-player-bar.css';
 import './moment-marker-drag.css';
+import './progress-length-fix.css';
 
 enableMomentMarkerDrag();
 
