@@ -13,7 +13,7 @@ afterEach(() => {
 });
 
 describe('adaptSearchResponse', () => {
-  it('normalizes NetEase cloudsearch songs', () => {
+  it('normalizes the cloud search response shape', () => {
     const songs = adaptSearchResponse({
       result: {
         songs: [{
@@ -116,7 +116,7 @@ describe('search endpoint routing', () => {
 
 describe('song URL helpers', () => {
   it('creates stable local ids and media URLs', () => {
-    expect(trackIdForSong(123)).toBe('netease-123');
+    expect(trackIdForSong(123)).toBe('online-123');
     expect(audioUrlForSong(123)).toBe('https://music.163.com/song/media/outer/url?id=123.mp3');
   });
 });
