@@ -4,7 +4,7 @@
 }
 
 .legacy-player-layout {
-  padding-bottom: calc(106px + env(safe-area-inset-bottom));
+  padding-bottom: calc(112px + env(safe-area-inset-bottom));
 }
 
 .legacy-player-layout .transport-card {
@@ -40,22 +40,54 @@
 }
 
 .legacy-player-layout .progress-area {
+  position: relative;
+  display: block;
   justify-self: stretch;
   width: 100%;
   min-width: 0;
-  grid-template-columns: 46px minmax(0, 1fr) 46px;
-  gap: 10px;
+  padding-bottom: 15px;
 }
 
-.legacy-player-layout .progress-line,
-.legacy-player-layout .progress-line input[type='range'] {
+.legacy-player-layout .progress-area > span {
+  position: absolute;
+  bottom: 0;
+  z-index: 7;
+  color: #77776f;
+  font-size: 10px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.legacy-player-layout .progress-area > span:first-child {
+  left: 0;
+}
+
+.legacy-player-layout .progress-area > span:last-child {
+  right: 0;
+  text-align: right;
+}
+
+.legacy-player-layout .progress-line {
+  position: relative;
   width: 100%;
   min-width: 0;
+  height: 42px;
+}
+
+.legacy-player-layout .progress-line input[type='range'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 @media (max-width: 760px) {
   .legacy-player-layout {
-    padding-bottom: calc(142px + env(safe-area-inset-bottom));
+    padding-bottom: calc(148px + env(safe-area-inset-bottom));
   }
 
   .legacy-player-layout .transport-card {
@@ -71,8 +103,12 @@
   }
 
   .legacy-player-layout .progress-area {
-    grid-template-columns: 40px minmax(0, 1fr) 40px;
-    gap: 7px;
+    width: 100%;
+    padding-bottom: 14px;
+  }
+
+  .legacy-player-layout .progress-line {
+    height: 38px;
   }
 }
 
@@ -98,10 +134,5 @@
 
   .legacy-player-layout .legacy-transport-actions > button {
     padding-inline: 8px;
-  }
-
-  .legacy-player-layout .progress-area {
-    grid-template-columns: 36px minmax(0, 1fr) 36px;
-    gap: 5px;
   }
 }
